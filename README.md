@@ -5,7 +5,7 @@ A local, serverless React 19 + Vite 8 application for turning public event calen
 
 ## GitHub Pages
 
-Live app: **https://ahzs645.github.io/mediakit/**  
+Live app: **https://projects.ahmadjalil.com/mediakit/**  
 Repository: **https://github.com/ahzs645/mediakit**
 
 [![Test and deploy Media Studio](https://github.com/ahzs645/mediakit/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/ahzs645/mediakit/actions/workflows/deploy-pages.yml)
@@ -38,7 +38,7 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 
 ## Workflow
 
-1. Choose a week and Weekdays or Weekend. Vancouver time is used consistently, including daylight-saving changes.
+1. Choose a week and Weekdays or Weekend. Vancouver time is used consistently, with B.C.’s permanent UTC−7 rule from March 8, 2026 and historical daylight-saving changes before then.
 2. Filter events by **source website** and **label**, or search. Source websites come from the original event website in the calendar metadata.
 3. Use a date chip to focus a day. Uncheck a date to omit it from the design. **Fill** suggests an event for one date; **Pick one per day** respects source, label, and search filters. All suggestions remain editable.
 4. Select events. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
@@ -47,6 +47,8 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
 On mobile, **Events**, **Preview**, and **Design & export** are separate tabs. The date, source, and label controls remain in the Events tab.
+
+B.C.’s [official permanent-time change](https://www2.gov.bc.ca/gov/content/governments/celebrating-british-columbia/daylight-saving-time) is handled explicitly so older browser time-zone databases do not move winter events by one hour.
 
 ## Layout and overflow
 
