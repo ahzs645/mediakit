@@ -34,6 +34,10 @@ jobs:
         run: npm ci
       - name: Run unit and layout tests
         run: npm test
+      - name: Install mobile test browsers
+        run: npx playwright install --with-deps chrome webkit
+      - name: Check phone workflows in Chrome and WebKit
+        run: npm run test:mobile
       - name: Build static site and offline shell
         run: npm run build
         env:

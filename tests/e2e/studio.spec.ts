@@ -73,8 +73,8 @@ test('month/year changes, connection failure, and offline saved edits',async({pa
 });
 
 test('mobile layout has no horizontal overflow and supports the complete flow',async({page})=>{
-  await page.setViewportSize({width:390,height:844});await setup(page);await pick(page);await page.getByRole('button',{name:'2. Preview',exact:true}).click();await expect(page.locator('.schedule-image')).toBeVisible();await expect(page.getByRole('button',{name:'Choose events'})).toHaveCount(0);
-  await page.screenshot({path:'docs/media-studio-mobile.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.getByRole('button',{name:'3. Design & export'}).click();await page.getByRole('button',{name:'Story 9:16'}).click();await expect(page.getByRole('button',{name:'Export your design'})).toBeEnabled();await page.getByRole('button',{name:'Export your design'}).click();await expect(page.getByRole('dialog')).toBeVisible();await page.screenshot({path:'test-results/mobile.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});await setup(page);await pick(page);await page.getByRole('tab',{name:'Preview',exact:true}).click();await expect(page.locator('.schedule-image')).toBeVisible();await expect(page.getByRole('button',{name:'Choose events'})).toHaveCount(0);
+  await page.screenshot({path:'docs/media-studio-mobile.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.getByRole('tab',{name:'Design',exact:true}).click();await page.getByRole('button',{name:'Story 9:16'}).click();await page.getByRole('tab',{name:'Export',exact:true}).click();await expect(page.getByRole('button',{name:'Download all slides + caption'})).toBeEnabled();await page.screenshot({path:'test-results/mobile.png',fullPage:true});
 });
 
 test('live UNBC API loads every page through actual browser CORS and exports',async({page})=>{
@@ -102,12 +102,12 @@ test('preview keeps its export ratio at desktop, narrow, and mobile widths',asyn
   await setup(page);
   for(const width of [1440,1024,390]){
     await page.setViewportSize({width,height:844});
-    if(width===390)await page.getByRole('button',{name:'2. Preview'}).click();
+    if(width===390)await page.getByRole('tab',{name:'Preview',exact:true}).click();
     for(const [format,ratio]of [['portrait',1080/1350],['story',1080/1920],['original',964/1302]] as const){
       // Change format through the app, including the separate mobile Design tab.
-      if(width===390)await page.getByRole('button',{name:'3. Design & export'}).click();
+      if(width===390)await page.getByRole('tab',{name:'Design',exact:true}).click();
       await page.getByRole('button',{name:format==='portrait'?'Post 4:5':format==='story'?'Story 9:16':'Original Figma',exact:true}).click();
-      if(width===390)await page.getByRole('button',{name:'2. Preview'}).click();
+      if(width===390)await page.getByRole('tab',{name:'Preview',exact:true}).click();
       await ready(page);
       const rect=await page.locator('.artboard').boundingBox();expect(rect!.width/rect!.height).toBeCloseTo(ratio,2);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
@@ -199,6 +199,6 @@ test('weekly list selects multiple events per day, exports seven days, and resto
 
 test('mobile date browsing and weekly list mode preserve multi-event selections',async({page})=>{
   await page.setViewportSize({width:390,height:844});await setup(page);await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true}).check();await page.getByRole('checkbox',{name:'Select Campus event 19.2',exact:true}).check();
-  await page.getByRole('button',{name:'3. Design & export',exact:true}).click();await page.getByRole('button',{name:'Weekly list',exact:false}).click();await ready(page);await page.getByRole('button',{name:'1. Events',exact:true}).click();await page.getByRole('button',{name:'Show 2026-10-25',exact:true}).click();await page.getByRole('button',{name:'Select all 2026-10-25',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');
-  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('button',{name:'2. Preview',exact:true}).click();await ready(page);await expect(page.locator('.schedule-image')).toHaveAttribute('alt',/Full week/);await page.screenshot({path:'test-results/mobile-weekly-list.png',fullPage:true});
+  await page.getByRole('tab',{name:'Design',exact:true}).click();await page.getByRole('button',{name:'Weekly list',exact:false}).click();await ready(page);await page.getByRole('tab',{name:'Events',exact:true}).click();await page.getByRole('button',{name:'Show 2026-10-25',exact:true}).click();await page.getByRole('button',{name:'Select all 2026-10-25',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('tab',{name:'Preview',exact:true}).click();await ready(page);await expect(page.locator('.schedule-image')).toHaveAttribute('alt',/Full week/);await page.screenshot({path:'test-results/mobile-weekly-list.png',fullPage:true});
 });

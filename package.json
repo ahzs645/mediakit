@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:mobile": "playwright test --config playwright.mobile.config.ts",
     "start": "vite --host 127.0.0.1",
     "test:offline": "node scripts/test-offline.mjs"
   },

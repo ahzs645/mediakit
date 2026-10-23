@@ -35,5 +35,16 @@ try {
  await page.getByRole('button',{name:'Download current slide'}).click();
  const listMetadata=await sharp(await readFile(await(await listDownload).path())).metadata();
  if(listMetadata.width!==1080||listMetadata.height!==1920||errors.length)throw new Error(`Invalid offline list export: ${JSON.stringify({width:listMetadata.width,height:listMetadata.height,errors})}`);
- console.log('PASS: original cards and the seven-day list reload fully offline, preserve selections, and export 1080×1350 / 1080×1920 PNGs without script errors.');
+ await page.getByRole('button',{name:'Close dialog',exact:true}).click();
+ await page.setViewportSize({width:390,height:844});
+ await page.reload();
+ await page.getByText('Saved calendar · offline').waitFor({timeout:15000});
+ await page.getByRole('tab',{name:'Export',exact:true}).click();
+ const mobileButton=page.getByRole('button',{name:'Download current slide (1)',exact:true});
+ await mobileButton.waitFor();
+ await page.waitForFunction(()=>!document.querySelector('.mobile-export-panel .button.primary')?.disabled);
+ const mobileDownload=page.waitForEvent('download');await mobileButton.click();
+ const mobileMetadata=await sharp(await readFile(await(await mobileDownload).path())).metadata();
+ if(mobileMetadata.width!==1080||mobileMetadata.height!==1920||errors.length)throw new Error(`Invalid offline mobile export: ${JSON.stringify({width:mobileMetadata.width,height:mobileMetadata.height,errors})}`);
+ console.log('PASS: original cards and the seven-day list reload fully offline, preserve selections, and export 1080×1350 / 1080×1920 PNGs on desktop and mobile without script errors.');
 } finally { await browser.close(); }

@@ -10,7 +10,7 @@ Repository: **https://github.com/ahzs645/mediakit**
 
 [![Test and deploy Media Studio](https://github.com/ahzs645/mediakit/actions/workflows/deploy-pages.yml/badge.svg)](https://github.com/ahzs645/mediakit/actions/workflows/deploy-pages.yml)
 
-The workflow in `.github/workflows/deploy-pages.yml` runs the unit/layout tests, builds with Node 24, and deploys `dist/` to GitHub Pages on every push to `main`. Pull requests run tests and build without deploying. You can also trigger a deployment manually from the Actions tab. Pages uses **GitHub Actions** as its publishing source.
+The workflow in `.github/workflows/deploy-pages.yml` runs unit/layout tests and touch workflows in Chrome and WebKit, builds with Node 24, and deploys `dist/` to GitHub Pages on every push to `main`. Pull requests run tests and build without deploying. You can also trigger a deployment manually from the Actions tab. Pages uses **GitHub Actions** as its publishing source.
 
 `VITE_BASE_PATH` sets the repository subdirectory for published assets, fonts, artwork, and the service worker. Local development keeps its relative base. Offline caches are scoped to the app path, so other GitHub Pages projects on the same account do not replace this app’s cache.
 
@@ -46,7 +46,11 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 6. Review the live preview and **Layout capacity**. The slide counter shows which image you are viewing. If the original cards have room for one event per date, extra selections go onto additional slides; the visible notice shows total selections, slide count, and how many events appear on the current slide. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
-On mobile, **Events**, **Preview**, and **Design & export** are separate tabs. The date, source, and label controls remain in the Events tab.
+On mobile, four persistent bottom tabs keep the workflow within reach: **Events → Design → Preview → Export**. Source and label filters expand from **Filters**, with an active-filter count. Date chips scroll horizontally when seven days need more room. Each panel keeps its scroll position and selections when switching tabs. The preview fits its actual export ratio, and the Export tab downloads images or ZIPs directly. **⋯** opens project backup, restore, and help.
+
+Phone controls use larger touch targets and 16px form inputs. Safe-area padding supports notches and home indicators. The layout follows the visual viewport when the keyboard opens; event editors keep a sticky save action. Short phones and landscape use a scrollable panel while retaining the bottom tabs. Desktop keeps its three-column workspace.
+
+[Events on mobile](docs/mobile-events.png) · [Design on mobile](docs/mobile-design.png) · [Export on mobile](docs/mobile-export.png)
 
 B.C.’s [official permanent-time change](https://www2.gov.bc.ca/gov/content/governments/celebrating-british-columbia/daylight-saving-time) is handled explicitly so older browser time-zone databases do not move winter events by one hour.
 
@@ -115,12 +119,15 @@ A third-party API must allow browser cross-origin requests (CORS). This cannot b
 ```sh
 npm test
 npm run test:e2e
+# additional touch workflows in Chrome and Safari’s WebKit engine:
+npx playwright install webkit
+npm run test:mobile
 npm run build
 # after npm run preview is serving the build:
 npm run test:offline
 ```
 
-Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, multiple selections per date, date browsing without deselection, additive suggestions, per-day bulk selection, seven-day list exports, refresh, pagination, date changes, mobile tabs, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
+Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, multiple selections per date, date browsing without deselection, additive suggestions, per-day bulk selection, seven-day list exports, refresh, pagination, date changes, mobile tabs, 320–430px portrait and phone landscape layouts, keyboard-reduced viewports, editor typing focus, accessible tab navigation, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
 
 The production offline check reloads with the network disabled and verifies a real PNG download. The offline shell is generated during build by `scripts/build-offline.mjs`. Production files in `dist/` can be served by any static HTTP server; opening `index.html` directly with `file://` is unsupported because browser modules, local fetches, and service workers need an HTTP origin.
 
@@ -134,4 +141,7 @@ The production offline check reloads with the network disabled and verifies a re
 - `src/date-font.ts`: private browser-local month font import and persistence.
 - `src/storage.ts`: versioned local project persistence and backup validation.
 - `src/App.tsx`: event picker, filters, date controls, preview, and editors.
-- `src/styles.css`: compact desktop workspace and tabbed mobile layout.
+- `src/WorkspaceTabs.tsx`: accessible four-tab navigation and responsive visual viewport handling.
+- `src/ExportOptions.tsx`: shared desktop dialog / mobile export controls.
+- `src/styles.css`: desktop workspace.
+- `src/mobile.css`: phone layouts, touch controls, safe areas, keyboard, and landscape behavior.

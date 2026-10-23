@@ -1,0 +1,277 @@
+/* Shared additions. The three desktop columns keep their existing layout. */
+.mobile-project-button, .mobile-filter-button, .mobile-export-panel { display: none; }
+.search-controls { display: flex; gap: 8px; }
+.search-controls .search-field { flex: 1; min-width: 0; }
+.project-menu { padding: 20px; display: grid; gap: 12px; }
+.project-menu p, .download-note { font-size: 11px; line-height: 1.7; color: #687c5f; }
+.download-note { text-align: center; margin-top: 12px; }
+
+@media (max-width: 760px), (max-width: 1000px) and (max-height: 500px) {
+  :root { font-size: 14px; --muted: #687862; }
+  html, body, #root { height: 100%; overflow: hidden; }
+  .app-shell {
+    height: 100vh;
+    height: var(--visual-height, 100dvh);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .compact-header {
+    height: auto;
+    min-height: 56px;
+    padding: max(6px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 6px max(14px, env(safe-area-inset-left));
+    flex-shrink: 0;
+    gap: 10px;
+  }
+  .studio-brand { gap: 9px; }
+  .studio-brand h1 { font-size: 19px; letter-spacing: -.6px; }
+  .studio-monogram { width: 29px; height: 29px; font-size: 23px; }
+  .studio-brand .local-tag, .compact-header .project-actions { display: none; }
+  .mobile-project-button { display: inline-flex; margin-left: auto; }
+  .icon-button, .source-card .icon-button { width: 44px; height: 44px; }
+  .app-shell > main {
+    padding: 0 max(10px, env(safe-area-inset-right)) 0 max(10px, env(safe-area-inset-left));
+    width: 100%; min-height: 0; flex: 1;
+    display: flex; flex-direction: column;
+  }
+  .workspace-toolbar {
+    flex-direction: column; flex-shrink: 0;
+    min-height: 0; gap: 3px; padding: 5px 0 8px; margin: 0;
+    align-items: stretch;
+  }
+  .date-controls { gap: 0; width: 100%; }
+  .toolbar-label { display: none; }
+  .date-picker {
+    min-width: 0; height: 44px; flex: 1;
+    font-size: 13px; justify-content: center; border-color: transparent; background: transparent;
+  }
+  .date-picker:focus-within { outline: 2px solid #749957; outline-offset: -2px; }
+  .today-button { font-size: 11px; min-height: 44px; padding: 0 9px; margin: 0; }
+  .toolbar-right { flex-direction: row; width: 100%; gap: 10px; justify-content: space-between; }
+  .timezone { font-size: 10px; margin: 0 6px; white-space: nowrap; }
+  .layout-switch { flex: 1; padding: 2px; }
+  .layout-switch > button { flex: 1; padding: 8px 6px; min-height: 36px; font-size: 12px; }
+
+  /* The active panel owns its scrolling; the workspace tabs always stay reachable. */
+  .studio-grid {
+    display: flex; flex: 1; min-height: 0; min-width: 0;
+    gap: 0; padding: 8px 0; overflow: hidden;
+  }
+  .studio-grid > .events-panel, .studio-grid > .design-panel,
+  .studio-grid > .preview-panel, .studio-grid > .mobile-export-panel { display: none; }
+  .studio-grid.mobile-events > .events-panel,
+  .studio-grid.mobile-design > .design-panel,
+  .studio-grid.mobile-preview > .preview-panel,
+  .studio-grid.mobile-export > .mobile-export-panel {
+    display: flex; flex-direction: column; width: 100%; min-width: 0;
+    height: 100%; min-height: 0; max-height: none; margin: 0;
+  }
+  .panel { border-radius: 12px; }
+  .panel-heading, .design-panel .panel-heading {
+    padding: 4px 12px; height: 48px; min-height: 48px; flex-shrink: 0;
+  }
+  .panel-heading h2 { font-size: 15px; }
+  .step { width: 21px; height: 21px; font-size: 9px; }
+  .source-card {
+    margin: 0 12px; padding: 0 0 0 9px; gap: 7px; min-height: 44px; flex-shrink: 0;
+  }
+  .source-card .source-icon { display: none; }
+  .source-card strong { font-size: 11px; }
+  .source-card > div > span { font-size: 10px; margin-top: 2px; }
+  .source-card .icon-button { width: 40px; }
+  .sync-error { flex-shrink: 0; max-height: 100px; overflow: auto; font-size: 11px; margin: 6px 12px 0; }
+  .sync-error .text-button { font-size: 12px; min-height: 36px; }
+  .event-filters { padding: 10px 12px 7px; flex-shrink: 0; }
+  .search-field { height: 44px; }
+  .search-field input { font-size: 16px; }
+  .mobile-filter-button {
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    font-size: 12px; min-height: 44px; padding: 0 11px;
+    border: 1px solid #dce4d5; border-radius: 7px; color: #536e43;
+  }
+  .mobile-filter-button.active, .mobile-filter-button[aria-expanded='true'] { background: #edf4e4; border-color: #aec698; }
+  .mobile-filter-button > span { background: #155329; color: white; border-radius: 9px; font-size: 10px; padding: 1px 5px; }
+  .event-filters .filter-row { display: none; }
+  .event-filters.filters-expanded .filter-row { display: flex; margin-top: 8px; }
+  .category-select { padding: 0 8px; min-height: 44px; background: #f8faf5; border-radius: 7px; }
+  .category-select select { font-size: 16px; min-height: 42px; padding-right: 14px; }
+  .date-selection-heading { font-size: 11px; margin: 3px 0 1px; min-height: 36px; }
+  .selected-filter { min-height: 36px; font-size: 11px; padding: 4px 7px; color: #526c44; }
+  .selected-filter > span { font-size: 11px; min-width: 21px; text-align: center; }
+  .date-chips { gap: 4px; overflow-x: auto; padding: 2px; scrollbar-width: thin; scroll-snap-type: x proximity; }
+  .date-chips > button { flex: 1 0 44px; min-width: 44px; height: 48px; padding: 4px 1px; font-size: 12px; border-radius: 7px; scroll-snap-align: start; }
+  .date-chip > span { font-size: 10px; }
+  .date-chip > strong { font-size: 15px; }
+  .selection-hint { display: none; }
+  .selection-filter-note { font-size: 11px; }
+  .selection-filter-note button { font-size: 11px; padding: 4px 0; }
+  .events-scroll { min-height: 0; padding: 0 12px 12px; overscroll-behavior-y: contain; scroll-padding: 10px; }
+  .day-group { margin-top: 2px; }
+  .day-group-heading { padding: 4px 0; font-size: 12px; min-height: 44px; }
+  .day-group-heading > span > span { font-size: 10px; }
+  .day-include { min-height: 44px; font-size: 11px; gap: 7px; color: #5b734b; }
+  .day-include input { width: 17px; height: 17px; }
+  .day-selection-tools { font-size: 10px; gap: 6px; margin-bottom: 8px; color: #657c55; }
+  .day-selection-tools > button { font-size: 11px; min-height: 40px; padding: 6px 10px; }
+  .event-select { padding: 13px 54px 13px 12px; min-height: 72px; gap: 10px; }
+  .checkbox-ui { width: 18px; height: 18px; margin-top: 3px; }
+  .event-card h3 { font-size: 14px; line-height: 1.45; margin-top: 4px; color: #35492d; }
+  .event-category { font-size: 9px; letter-spacing: .5px; }
+  .event-card p { font-size: 12px; color: #64775a; }
+  .event-location { font-size: 11px; color: #6e8063; }
+  .event-card .edit-event { opacity: 1; top: 5px; right: 3px; height: 44px; width: 44px; color: #5e794e; }
+  .edit-event svg { width: 16px; height: 16px; }
+  .date-skipped-note, .no-events { font-size: 11px; }
+  .events-footer { flex-shrink: 0; padding: 6px 12px; gap: 12px; }
+  .events-footer .button { min-height: 44px; font-size: 12px; }
+  .events-footer > .text-button { font-size: 12px; min-height: 44px; padding: 0 14px; }
+
+  .mobile-tabs {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+    flex-shrink: 0; gap: 4px; padding: 6px max(10px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    margin: 0; background: #fff; border-top: 1px solid #dfe6d7;
+  }
+  .mobile-tabs > button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 54px; padding: 6px 4px; border-radius: 9px;
+    font-size: 11px; font-weight: 500; color: #73826b; transition: none;
+  }
+  .mobile-tabs > button.active { background: #edf4e5; color: #155329; }
+  .tab-icon { display: flex; position: relative; }
+  .tab-count { position: absolute; left: 14px; top: -5px; min-width: 16px; padding: 1px 4px; background: #155329; color: white; font-size: 9px; border: 2px solid #fff; border-radius: 10px; }
+  .mobile-tabs button:focus-visible { outline-offset: -3px; }
+
+  .preview-panel { overflow: auto; overscroll-behavior-y: contain; }
+  .preview-heading { height: 44px; flex-shrink: 0; padding: 0 4px; }
+  .preview-heading > div { font-size: 13px; }
+  .canvas-workspace { height: auto; min-height: 160px; flex: 1 0 0; max-height: none; padding: 14px; border-radius: 12px; }
+  .preview-hint { font-size: 11px; bottom: 8px; padding: 4px; }
+  .preview-hint > span { display: none; }
+  .preview-hint button { min-height: 36px; }
+  .preview-pagination { flex-shrink: 0; margin-top: 4px; gap: 5px; }
+  .slide-position { font-size: 12px; }
+  .slide-dots { gap: 2px; }
+  .slide-dots button { width: 36px; height: 44px; font-size: 12px; }
+  .preview-meta { flex-shrink: 0; font-size: 10px; margin: 0 4px 6px; }
+  .pagination-note, .layout-warnings { flex-shrink: 0; margin: 7px 0 0; font-size: 12px; padding: 10px 12px; }
+  .pagination-note p { font-size: 11px; }
+  .pagination-note .text-button { min-height: 36px; font-size: 11px; }
+  .layout-warnings { max-height: 160px; overflow: auto; }
+
+  .design-scroll { display: block; min-height: 0; overscroll-behavior-y: contain; padding-bottom: 12px; }
+  .design-panel .export-footer { display: none; }
+  .design-panel .control-section { padding: 17px 16px; }
+  .control-label { font-size: 13px; margin-bottom: 13px; }
+  .control-label > span:last-child:not(:first-child) { font-size: 8px; }
+  .template-switch > button { padding: 14px 12px; min-height: 76px; }
+  .template-switch strong { font-size: 13px; }
+  .template-switch small { font-size: 11px; color: #708360; }
+  .format-grid { gap: 9px; }
+  .format-grid > button { padding: 14px 6px 11px; min-height: 90px; }
+  .format-grid > button > strong { font-size: 12px; }
+  .format-grid > button > small { font-size: 10px; }
+  .palette-grid { gap: 5px; }
+  .palette-choice { min-height: 64px; gap: 9px; justify-content: center; }
+  .design-panel .palette-sample { height: 34px; width: 34px; }
+  .palette-choice small { font-size: 10px; }
+  .palette-note { font-size: 10px; }
+  .custom-colors { gap: 8px; }
+  .custom-colors > label { min-height: 44px; font-size: 11px; }
+  .custom-colors input { width: 40px; height: 40px; }
+  .toggle-row { min-height: 44px; margin: 0; font-size: 13px; color: #5d754f; }
+  .toggle-row > input { width: 44px; height: 44px; margin: 0; }
+  .toggle { width: 36px; height: 22px; }
+  .toggle:after { width: 16px; height: 16px; }
+  .toggle-row > input:checked + .toggle:after { transform: translateX(14px); }
+  .text-size-label, .position-control { font-size: 12px; }
+  .text-size-label > span:last-child, .position-control output { font-size: 11px; }
+  input[type='range'] { height: 32px; margin: 3px 0; }
+  .range-labels { font-size: 10px; }
+  .control-note, .capacity-card p { font-size: 11px; color: #758568; }
+  .layout-controls summary { min-height: 32px; font-size: 13px; margin: 0; }
+  .layout-controls > .text-button, .local-font-control .text-button { min-height: 44px; font-size: 12px; }
+  .local-font-control, .local-font-control > small { font-size: 11px; }
+  .capacity-card { margin: 6px 16px; padding: 14px; }
+  .capacity-card .control-label { font-size: 12px; }
+  .capacity-row { font-size: 11px; margin: 12px 0; }
+  .capacity-row > span:last-child { font-size: 10px; width: 85px; }
+
+  .mobile-export-panel .panel-heading { padding-left: 16px; padding-right: 16px; }
+  .export-readiness { font-size: 11px; color: #668257; }
+  .mobile-export-scroll { overflow: auto; min-height: 0; overscroll-behavior-y: contain; }
+  .export-dialog-body { padding: 16px; }
+  .export-summary { gap: 16px; margin-bottom: 20px; }
+  .export-thumbnail { width: 82px; height: 112px; flex-shrink: 0; }
+  .export-summary h3 { font-size: 16px; }
+  .export-summary p { font-size: 12px; color: #64775a; }
+  .export-summary span { font-size: 11px; color: #758568; }
+  .export-dialog-body > .button { min-height: 48px; font-size: 13px; }
+  .caption-button, .export-dialog-body > .caption-button { min-height: 44px; font-size: 12px; padding: 12px 4px; }
+  .export-check { display: flex; gap: 9px; padding: 12px; margin: 8px 16px 0; background: #fff7e9; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #806539; }
+  .export-check > svg { flex-shrink: 0; }
+  .export-check .text-button { display: block; font-size: 12px; min-height: 36px; }
+  .empty-state { padding: 40px 20px; }
+  .empty-state h3 { font-size: 16px; }
+  .empty-state p { font-size: 13px; color: #708460; }
+  .button, .button.compact { min-height: 44px; font-size: 13px; }
+
+  /* Full-height editors keep their own scroll, large inputs, and a reachable save action. */
+  .modal-backdrop {
+    inset: var(--visual-top, 0px) 0 auto;
+    height: var(--visual-height, 100dvh);
+    padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+  .modal { max-height: 100%; border-radius: 14px; overscroll-behavior-y: contain; scroll-padding-top: 105px; }
+  .modal-header { padding: 12px 16px; align-items: center; }
+  .modal-header h2 { font-size: 20px; }
+  .modal-header p { font-size: 11px; margin-top: 5px; }
+  .dialog-form { padding: 16px 16px 0; }
+  .field-label { font-size: 12px; gap: 8px; }
+  .field-label > input, .field-label > select, .field-label > textarea { min-height: 46px; font-size: 16px; padding: 11px; }
+  .field-label > small, .optional { font-size: 10px; }
+  .field-grid { gap: 10px; min-width: 0; }
+  .field-grid > * { min-width: 0; }
+  .field-visibility { gap: 2px 12px; padding: 7px 12px; }
+  .field-visibility > span { font-size: 11px; }
+  .field-visibility > label { min-height: 44px; font-size: 12px; gap: 7px; }
+  .field-visibility input { width: 17px; height: 17px; }
+  .editor-source { font-size: 11px; flex-wrap: wrap; }
+  .editor-source > a { margin-left: 0; min-height: 36px; }
+  .editor-description-actions .button { font-size: 11px; }
+  .editor-description-actions .small-note { display: none; }
+  .simple-checkbox { min-height: 44px; font-size: 12px; }
+  .simple-checkbox > input { width: 17px; height: 17px; }
+  .dialog-footer { position: sticky; bottom: 0; padding: 10px 0; margin-top: 16px; background: #fff; z-index: 1; }
+  .dialog-footer > .text-button { font-size: 11px; min-height: 44px; }
+  .info-box, .help-content p, .small-note { font-size: 12px; }
+  .help-content { padding: 18px; }
+  .large-preview { padding: 12px; }
+  .toast { bottom: calc(76px + env(safe-area-inset-bottom)); font-size: 12px; padding: 8px 10px; max-width: calc(100vw - 24px); gap: 8px; }
+  .toast .icon-button { width: 36px; height: 36px; }
+  .global-alert { flex-shrink: 0; font-size: 11px; margin: 5px 0 0; max-height: 90px; overflow: auto; }
+}
+
+/* A short landscape screen or an open keyboard uses one scrollable panel. */
+@media (max-width: 760px) and (max-height: 600px), (max-width: 1000px) and (max-height: 500px) {
+  .app-shell > main { overflow-y: auto; }
+  .studio-grid { overflow: visible; flex: none; }
+  .studio-grid.mobile-events > .events-panel,
+  .studio-grid.mobile-design > .design-panel,
+  .studio-grid.mobile-export > .mobile-export-panel { height: auto; }
+  .events-scroll, .design-scroll, .mobile-export-scroll { overflow: visible; }
+  .studio-grid.mobile-preview > .preview-panel { min-height: 420px; }
+  .workspace-toolbar { flex-direction: row; align-items: center; gap: 8px; }
+  .toolbar-right { width: 45%; }
+  .date-controls { flex: 1; }
+  .timezone { display: none; }
+}
+
+@media (max-width: 359px) {
+  .timezone { display: none; }
+  .day-selection-tools > button { padding: 6px; font-size: 10px; }
+  .day-selection-tools { gap: 4px; }
+  .date-chips { gap: 3px; }
+  .date-chip > span { font-size: 9px; }
+  .palette-grid { grid-template-columns: repeat(3, 1fr); }
+  .field-grid { grid-template-columns: 1fr; }
+}
