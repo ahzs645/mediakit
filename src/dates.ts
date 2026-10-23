@@ -21,7 +21,7 @@ export function monday(day: string): string {
   const weekday = new Date(`${day}T12:00:00Z`).getUTCDay(); return addDays(day, -(weekday + 6) % 7);
 }
 export function daysFor(week: string, layout: Layout): string[] {
-  return Array.from({ length: layout === 'weekly' ? 5 : 2 }, (_, i) => addDays(week, i + (layout === 'weekend' ? 5 : 0)));
+  return Array.from({ length: layout === 'full-week' ? 7 : layout === 'weekly' ? 5 : 2 }, (_, i) => addDays(week, i + (layout === 'weekend' ? 5 : 0)));
 }
 export function dayLabel(day: string, style: 'short' | 'long' = 'short'): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC', weekday: style }).format(new Date(`${day}T12:00:00Z`));

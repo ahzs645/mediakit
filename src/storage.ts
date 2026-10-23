@@ -4,15 +4,15 @@ import { dateKey, monday, validDay, TIMEZONE } from './dates';
 import { safeUrl } from './api';
 export const STORAGE_KEY = 'ote-media-studio-v1';
 export function newProject(): Project {
-  return { version: 1, week: monday(dateKey(new Date())), layout: 'weekly', format: 'portrait', palette: 'cream', customPalette: { ...PALETTES.cream, name: 'Custom' }, source: { ...DEFAULT_SOURCE }, events: [], manualEvents: [], selected: [], edits: {}, fetchedAt: null, fetchedRange: '', showLocation: true, showDescription: false, textScale: 1, timezone: TIMEZONE, skippedDays: [], hideEmptyDays: false, showTime: true, showTitle: true, headingOffset: 0, stampOffset: 0, badgeHeight: 1.2 };
+  return { version: 1, week: monday(dateKey(new Date())), layout: 'weekly', template: 'cards', format: 'portrait', palette: 'cream', customPalette: { ...PALETTES.cream, name: 'Custom' }, source: { ...DEFAULT_SOURCE }, events: [], manualEvents: [], selected: [], edits: {}, fetchedAt: null, fetchedRange: '', showLocation: true, showDescription: false, textScale: 1, timezone: TIMEZONE, skippedDays: [], hideEmptyDays: false, showTime: true, showTitle: true, headingOffset: 0, stampOffset: 0, badgeHeight: 1.2 };
 }
 function validEvents(data: unknown): data is CalendarEvent[] {
   return Array.isArray(data) && data.length <= 10000 && data.every(e => e && ['id','sourceId','title','description','start','end','location','category','url','status','cost'].every(k => typeof e[k] === 'string') && typeof e.allDay === 'boolean' && (e.origin === undefined || typeof e.origin === 'string') && (e.labels === undefined || Array.isArray(e.labels) && e.labels.every((label: unknown) => typeof label === 'string')) && Number.isFinite(Date.parse(e.start)) && Number.isFinite(Date.parse(e.end)) && Date.parse(e.end) >= Date.parse(e.start));
 }
 export function parseProject(data: unknown): Project {
   const p = data as Project;
-  if (p && p.version === 1) { p.skippedDays ??= []; p.hideEmptyDays ??= false; p.showTime ??= true; p.showTitle ??= true; p.headingOffset ??= 0; p.stampOffset ??= 0; p.badgeHeight ??= 1.2; }
-  if (!p || p.version !== 1 || !validDay(p.week) || !['weekly','weekend'].includes(p.layout) || !['portrait','story','original'].includes(p.format)
+  if (p && p.version === 1) { p.skippedDays ??= []; p.hideEmptyDays ??= false; p.showTime ??= true; p.showTitle ??= true; p.headingOffset ??= 0; p.stampOffset ??= 0; p.badgeHeight ??= 1.2; p.template ??= 'cards'; }
+  if (!p || p.version !== 1 || !validDay(p.week) || !['weekly','weekend','full-week'].includes(p.layout) || !['cards','list'].includes(p.template) || p.layout === 'full-week' && p.template !== 'list' || !['portrait','story','original'].includes(p.format)
     || typeof p.palette !== 'string' || ![...Object.keys(PALETTES),'custom'].includes(p.palette) || !p.customPalette || !['paper','ink','accent','badgeInk'].every(k => /^#[0-9a-f]{6}$/i.test(p.customPalette[k as keyof typeof p.customPalette]))
     || !p.source || !['unbc','tribe','json'].includes(p.source.provider) || !safeUrl(p.source.url) || typeof p.source.name !== 'string' || typeof p.source.id !== 'string'
     || !validEvents(p.events) || !validEvents(p.manualEvents) || !Array.isArray(p.selected) || !p.selected.every(x => typeof x === 'string')

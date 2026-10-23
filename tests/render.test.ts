@@ -40,4 +40,13 @@ describe('production SVG layout engine',()=>{
   }
   expect(adjusted.pages[0].svg).toContain('scale(1 1.5)');
  });
+ it('fits three short events per day on one full-week list Story',async()=>{
+  const p={...newProject(),week:'2026-10-19',template:'list' as const,layout:'full-week' as const,format:'story' as const,showTime:false};
+  p.events=Array.from({length:21},(_,i)=>({...event(String(i),19+Math.floor(i/3)),title:['Line Dancing','Campus meetup','Movie Night'][i%3],location:'UNBC'}));p.selected=p.events.map(e=>e.id);
+  const r=await renderProject(p);expect(r.warnings).toEqual([]);expect(r.pages).toHaveLength(1);expect(r.pages[0].eventCount).toBe(21);expect(r.capacity).toHaveLength(7);expect(r.pages[0].svg).toContain('Oct 19 – 25, 2026');expect(r.pages[0].svg).toContain('data-day="2026-10-25"');expect(r.pages[0].svg).not.toContain('<text');
+ });
+ it('paginates list events without dropping entries and reflows skipped dates in every format',async()=>{
+  for(const format of ['portrait','story','original'] as const){const p={...newProject(),week:'2026-10-19',template:'list' as const,layout:'full-week' as const,format,showTime:false};p.events=Array.from({length:40},(_,i)=>({...event(String(i),19+i%7),title:'Campus event',location:'UNBC'}));p.selected=p.events.map(e=>e.id);p.skippedDays=['2026-10-21'];const r=await renderProject(p);expect(r.warnings).toEqual([]);expect(r.count).toBe(p.events.filter(e=>!e.start.startsWith('2026-10-21')).length);expect(r.pages.reduce((n,page)=>n+page.eventCount,0)).toBe(r.count);expect(r.capacity).toHaveLength(6);expect(r.hiddenDays).toBe(1);for(const day of r.capacity)expect(day.used).toBeLessThanOrEqual(day.available);}
+ });
+ it('blocks oversized and invisible list entries before export',async()=>{const p={...newProject(),week:'2026-10-19',template:'list' as const,layout:'full-week' as const,format:'story' as const};p.events=[{...event('long'),title:'Long detailed title '.repeat(100)}];p.selected=['long'];let r=await renderProject(p);expect(r.warnings.join()).toContain('too long');p.edits.long={showTitle:false,showTime:false,showLocation:false,showDescription:false};r=await renderProject(p);expect(r.warnings.join()).toContain('every field hidden');});
 });

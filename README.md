@@ -40,10 +40,10 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 
 1. Choose a week and Weekdays or Weekend. Vancouver time is used consistently, with B.C.’s permanent UTC−7 rule from March 8, 2026 and historical daylight-saving changes before then.
 2. Filter events by **source website** and **label**, or search. Source websites come from the original event website in the calendar metadata.
-3. Use a date chip to focus a day. Uncheck a date to omit it from the design. **Fill** suggests an event for one date; **Pick one per day** respects source, label, and search filters. All suggestions remain editable.
-4. Select events. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
-5. Choose Post, Story, or Original, a palette, and field visibility. **Spacing & date badges** moves the heading and month badge independently and adjusts day badge height. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
-6. Review the live preview and **Layout capacity**. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
+3. Date chips only browse events for a day; they never hide a date or remove selections. Each day has a separate **In design** checkbox for omitting that date. **Selected only** explicitly filters the event list, with a **Show all events** action to return to browsing.
+4. Select as many event cards as needed, including multiple events per date. **Select all** adds every matching event for a date. **Suggest** adds the next unselected event; **Add suggestions** adds one new event per visible, included date. Suggestions respect source, label, and search filters and preserve all earlier selections, including selections from other views. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
+5. Choose **Original cards** or **Weekly list**, then Post, Story, or Original, a palette, and field visibility. Weekly list starts with all seven days in Story format and times off; use Weekdays, Weekend, or Full week and enable times if wanted. **Spacing & date badges** moves the heading and month badge independently and adjusts day badge height. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
+6. Review the live preview and **Layout capacity**. The slide counter shows which image you are viewing. If the original cards have room for one event per date, extra selections go onto additional slides; the visible notice shows total selections, slide count, and how many events appear on the current slide. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
 On mobile, **Events**, **Preview**, and **Design & export** are separate tabs. The date, source, and label controls remain in the Events tab.
@@ -63,6 +63,14 @@ The renderer measures the actual vector-font width of each line, wraps titles, d
 - Midnight end times are exclusive. Multi-day events appear on each overlapping visible date. Duplicate occurrence IDs are deduplicated while fetching pages.
 
 Output sizes: **Post 1080×1350**, **Story 1080×1920**, and **Original 964×1302** (exactly 2× the supplied 482×651 SVG dimensions). Supplied art proportions are preserved; the small ratio difference is filled with matching background rather than stretching the artwork. Weekday and weekend Stories both use their original supplied SVG artwork. The preview keeps the exact export aspect ratio at desktop and mobile sizes, without adding blank bands.
+
+## Weekly list mode
+
+The additional style follows the supplied seven-day examples: a heavy condensed heading, full weekday names with large date numerals in a separate left column, green outlines, bold event titles, italic venues in parentheses, and a faint repeating background. The date range, month, and year update automatically.
+
+Rows share a measured height budget based on their content. Short events can fit several per date on one slide; longer days receive more space. When the page fills, whole events continue on subsequent slides. Oversized individual events, invisible entries, unsupported symbols, and cancelled events still block export with an explanation. Weekday, weekend, and full-week ranges work in every export size. Skipped/empty dates reflow, field edits carry across styles, and backups preserve the chosen template.
+
+[Weekly list workspace](docs/weekly-list-studio.png) · [Example export](docs/weekly-list-example.png)
 
 ## Design fidelity and overlay analysis
 
@@ -112,7 +120,7 @@ npm run build
 npm run test:offline
 ```
 
-Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, refresh, pagination, date changes, mobile tabs, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
+Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, multiple selections per date, date browsing without deselection, additive suggestions, per-day bulk selection, seven-day list exports, refresh, pagination, date changes, mobile tabs, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
 
 The production offline check reloads with the network disabled and verifies a real PNG download. The offline shell is generated during build by `scripts/build-offline.mjs`. Production files in `dist/` can be served by any static HTTP server; opening `index.html` directly with `file://` is unsupported because browser modules, local fetches, and service workers need an HTTP origin.
 
@@ -120,7 +128,9 @@ The production offline check reloads with the network disabled and verifies a re
 
 - `src/api.ts`: API adapters, pagination, normalization, and text cleaning.
 - `src/dates.ts`: date ranges, local dates, time labels, DST, and multi-day overlap.
-- `src/render.ts`: vector layout, repeating watermark, textured badges, capacity, reflow, image/ZIP exports, and captions.
+- `src/render.ts`: original card layout, repeating watermark, textured badges, capacity, reflow, image/ZIP exports, and captions.
+- `src/list-layout.ts`: seven-day list style, inline bold/italic wrapping, measured row allocation, and pagination.
+- `src/vector-text.ts`: shared vector lettering and wrapping helpers.
 - `src/date-font.ts`: private browser-local month font import and persistence.
 - `src/storage.ts`: versioned local project persistence and backup validation.
 - `src/App.tsx`: event picker, filters, date controls, preview, and editors.

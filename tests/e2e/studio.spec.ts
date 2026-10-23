@@ -19,7 +19,7 @@ async function setup(page:Page) {
   await expect(page.locator('.schedule-image')).toBeAttached();
 }
 async function ready(page:Page){await expect(page.locator('.artboard')).not.toHaveClass(/is-rendering/);await expect(page.locator('.preview-error')).toHaveCount(0);}
-async function pick(page:Page){await page.getByRole('button',{name:'Pick one per day'}).click();await expect(page.locator('.export-main')).toBeEnabled();await ready(page);}
+async function pick(page:Page){await page.getByRole('button',{name:'Add suggestions'}).click();await expect(page.locator('.export-main')).toBeEnabled();await ready(page);}
 
 test('select, edit, simplify, refresh, and restore a saved project',async({page})=>{
   await setup(page);await pick(page);await expect(page.locator('.selected-filter')).toContainText('5');
@@ -48,8 +48,9 @@ test('exports full-resolution PNG, JPEG, portable SVG, and a ZIP with caption',a
 
 test('busy days automatically paginate without dropping events',async({page})=>{
   await setup(page);await page.getByLabel('Search events').fill('Campus event 19.');const choices=page.getByRole('checkbox',{name:/Select Campus event 19\./});for(let i=0;i<await choices.count();i++)await choices.nth(i).check();await ready(page);
-  await expect(page.getByText(/Automatically arranged across/)).toBeVisible();await expect(page.locator('.selected-filter')).toContainText('5');
+  await expect(page.locator('.pagination-note')).toContainText('5 events selected');await expect(page.locator('.selected-filter')).toContainText('5');
   const source=await page.locator('.schedule-image').evaluate(async(img:HTMLImageElement)=>fetch(img.src).then(r=>r.text()));expect(source).toContain('slide 1');await page.getByRole('button',{name:'Next slide',exact:true}).click();await expect(page.locator('.schedule-image')).toHaveAttribute('alt',/slide 2/);
+  await page.getByRole('button',{name:'Try the compact weekly list',exact:true}).click();await ready(page);await expect(page.locator('.selected-filter')).toContainText('5');const compact=await page.locator('.schedule-image').evaluate(async(img:HTMLImageElement)=>fetch(img.src).then(r=>r.text()));expect(compact.match(/data-event-id=/g)).toHaveLength(5);
 });
 
 test('long edits block export until corrected, cancelled events cannot be selected',async({page})=>{
@@ -68,7 +69,7 @@ test('weekend, story, original, custom colours, and manual events work',async({p
 test('month/year changes, connection failure, and offline saved edits',async({page})=>{
   await setup(page);await pick(page);await page.getByLabel('Week starting').fill('2026-12-28');await expect(page.locator('.date-picker')).toContainText('2027');await ready(page);
   const svg=await page.locator('.schedule-image').evaluate(async(img:HTMLImageElement)=>fetch(img.src).then(r=>r.text()));expect(svg).toContain('2026-12-28');
-  await page.getByLabel('Week starting').fill('2026-10-19');await expect(page.getByText('Connected to live calendar')).toBeVisible();await pick(page);await page.waitForTimeout(400);await page.route(endpoint,route=>route.abort('failed'));await page.getByRole('button',{name:'Refresh calendar'}).click();await expect(page.getByRole('alert')).toContainText('saved work');await expect(page.locator('.selected-filter')).toContainText('5');await expect(page.getByRole('button',{name:'Export your design'})).toBeEnabled();
+  await page.getByLabel('Week starting').fill('2026-10-19');await expect(page.getByText('Connected to live calendar')).toBeVisible();await pick(page);await page.waitForTimeout(400);await page.route(endpoint,route=>route.abort('failed'));await page.getByRole('button',{name:'Refresh calendar'}).click();await expect(page.getByRole('alert')).toContainText('saved work');await expect(page.locator('.selected-filter')).toContainText('10');await expect(page.getByRole('button',{name:'Export your design'})).toBeEnabled();
 });
 
 test('mobile layout has no horizontal overflow and supports the complete flow',async({page})=>{
@@ -85,7 +86,7 @@ test('live UNBC API loads every page through actual browser CORS and exports',as
 test('date selection, sources, labels, field switches, and capacity reflow stay in sync',async({page})=>{
   await setup(page);await page.getByLabel('Event source',{exact:true}).selectOption('tourismpg.com');await expect(page.locator('.event-card')).toHaveCount(10);
   await page.getByLabel('Event source',{exact:true}).selectOption('All');await page.getByLabel('Event category',{exact:true}).selectOption('UNBC');await expect(page.locator('.event-card')).toHaveCount(15);await page.getByLabel('Event category',{exact:true}).selectOption('All');
-  await page.getByRole('button',{name:'Fill 2026-10-21',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('1');
+  await page.getByRole('button',{name:'Add suggestion 2026-10-21',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('1');
   await page.getByLabel('Include 2026-10-20',{exact:true}).uncheck();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(4);
   await page.getByRole('button',{name:'Show 2026-10-21',exact:true}).click();await expect(page.locator('.event-card')).toHaveCount(5);
   await page.getByRole('button',{name:'Edit Campus event 21.1',exact:true}).click();await page.getByLabel('Show event location',{exact:true}).uncheck();await page.getByLabel('Show event time',{exact:true}).uncheck();await page.getByLabel('Show event description',{exact:true}).uncheck();await page.getByRole('button',{name:'Save edits',exact:true}).click();await ready(page);await expect(page.getByRole('button',{name:'Export your design'})).toBeEnabled();
@@ -155,4 +156,49 @@ test('spacing controls save and local fonts stay out of project backups',async({
   expect(saved).toMatchObject({headingOffset:-2,stampOffset:1,badgeHeight:1.5});expect(saved).not.toHaveProperty('dateFont');expect(JSON.stringify(saved)).not.toContain('base64');
   await page.getByRole('button',{name:'Remove font',exact:true}).click();await expect(page.locator('.local-font-control')).toContainText('Original artwork');
   await page.getByRole('button',{name:'Reset spacing',exact:true}).click();await expect(page.getByRole('slider',{name:'Day badge height',exact:true})).toHaveValue('1.2');
+});
+
+test('date chips browse without changing selections or design dates; multiple events stay selected',async({page})=>{
+  await setup(page);
+  await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();
+  await expect(page.locator('.day-group')).toHaveCount(1);await expect(page.locator('.event-card')).toHaveCount(5);
+  await expect(page.getByRole('button',{name:'Show 2026-10-19',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true}).check();await page.getByRole('checkbox',{name:'Select Campus event 19.2',exact:true}).check();
+  await page.getByRole('button',{name:'Show 2026-10-20',exact:true}).click();await page.getByRole('checkbox',{name:'Select Campus event 20.1',exact:true}).check();
+  await expect(page.locator('.selected-filter')).toContainText('3');await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(5);
+  await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await expect(page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true})).toBeChecked();await expect(page.getByRole('checkbox',{name:'Select Campus event 19.2',exact:true})).toBeChecked();
+  await page.getByRole('button',{name:'Add suggestion 2026-10-19',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('4');
+  await page.getByRole('button',{name:'Add suggestion 2026-10-19',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('5');
+  await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('6');await expect(page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true})).toBeChecked();
+  await page.getByRole('button',{name:'Show 2026-10-20',exact:true}).click();await expect(page.getByRole('checkbox',{name:'Select Campus event 20.1',exact:true})).toBeChecked();
+  await page.getByLabel('Include 2026-10-20',{exact:true}).uncheck();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(4);
+  await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await page.getByRole('button',{name:'Show 2026-10-20',exact:true}).click();await expect(page.getByLabel('Include 2026-10-20',{exact:true})).not.toBeChecked();
+  await page.getByLabel('Include 2026-10-20',{exact:true}).check();await expect(page.locator('.selected-filter')).toContainText('6');
+});
+
+test('Select all respects source filters, selected-only is explicit, and suggestions keep other dates',async({page})=>{
+  await setup(page);await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await page.getByLabel('Event source',{exact:true}).selectOption('tourismpg.com');
+  await page.getByRole('button',{name:'Select all 2026-10-19',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('2');
+  await page.getByRole('button',{name:'Show 2026-10-20',exact:true}).click();await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('3');
+  await page.getByLabel('Event source',{exact:true}).selectOption('All');await page.locator('.selected-filter').click();await expect(page.getByRole('button',{name:'Show all events',exact:true})).toBeVisible();await expect(page.locator('.event-card')).toHaveCount(1);
+  await page.getByRole('button',{name:'Show all events',exact:true}).click();await expect(page.locator('.event-card')).toHaveCount(5);await expect(page.locator('.selected-filter')).toContainText('3');
+  await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await expect(page.getByRole('checkbox',{name:'Select Campus event 19.2',exact:true})).toBeChecked();await expect(page.getByRole('checkbox',{name:'Select Campus event 19.4',exact:true})).toBeChecked();
+});
+
+test('weekly list selects multiple events per day, exports seven days, and restores its mode',async({page})=>{
+  await setup(page);await page.getByRole('button',{name:'Weekly list',exact:false}).click();await ready(page);
+  await expect(page.getByRole('button',{name:'Full week',exact:true})).toBeVisible();await expect(page.locator('.date-picker')).toContainText('Oct 19 – 25');await expect(page.locator('.capacity-row')).toHaveCount(7);
+  await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('14');await ready(page);
+  const svg=await page.locator('.schedule-image').evaluate(async(img:HTMLImageElement)=>fetch(img.src).then(r=>r.text()));expect(svg.match(/data-event-id=/g)).toHaveLength(14);expect(svg).toContain('data-day="2026-10-25"');expect(svg).not.toContain('<text');await expect(page.locator('.preview-meta')).toContainText('1 slide');
+  await page.getByRole('button',{name:'Export your design',exact:true}).click();const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download all slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));const png=Object.keys(zip.files).find(name=>name.endsWith('.png'))!;const pngBytes=await zip.file(png)!.async('nodebuffer');expect(await sharp(pngBytes).metadata()).toMatchObject({width:1080,height:1920});await fs.writeFile('docs/weekly-list-example.png',pngBytes);expect(await zip.file('caption.txt')!.async('string')).toContain('2026-10-25');
+  await page.getByRole('button',{name:'Close dialog',exact:true}).click();await page.waitForTimeout(400);await page.reload();await ready(page);await expect(page.locator('.selected-filter')).toContainText('14');await expect(page.getByRole('button',{name:'Full week',exact:true})).toBeVisible();
+  await page.screenshot({path:'docs/weekly-list-studio.png',fullPage:true});
+  await page.getByRole('button',{name:'Weekdays',exact:true}).click();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(5);await page.getByRole('button',{name:'Weekend',exact:true}).click();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(2);
+  await page.getByRole('button',{name:'Original cards',exact:false}).click();await ready(page);await expect(page.getByRole('button',{name:'Full week',exact:true})).toHaveCount(0);
+});
+
+test('mobile date browsing and weekly list mode preserve multi-event selections',async({page})=>{
+  await page.setViewportSize({width:390,height:844});await setup(page);await page.getByRole('button',{name:'Show 2026-10-19',exact:true}).click();await page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true}).check();await page.getByRole('checkbox',{name:'Select Campus event 19.2',exact:true}).check();
+  await page.getByRole('button',{name:'3. Design & export',exact:true}).click();await page.getByRole('button',{name:'Weekly list',exact:false}).click();await ready(page);await page.getByRole('button',{name:'1. Events',exact:true}).click();await page.getByRole('button',{name:'Show 2026-10-25',exact:true}).click();await page.getByRole('button',{name:'Select all 2026-10-25',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('button',{name:'2. Preview',exact:true}).click();await ready(page);await expect(page.locator('.schedule-image')).toHaveAttribute('alt',/Full week/);await page.screenshot({path:'test-results/mobile-weekly-list.png',fullPage:true});
 });

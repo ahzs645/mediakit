@@ -25,3 +25,32 @@
 .local-font-control>span,.local-font-control>small{width:100%}
 .local-font-control>small{font-size:9px;line-height:1.6;color:#91a184}
 .local-font-control .text-button{font-size:10px}
+
+/* Date chips browse; design visibility lives beside each day's event list. */
+.date-chips{gap:4px}
+.date-chips>button{height:43px;padding:5px 4px;flex:1 1 0;min-width:0}
+.date-chips>.date-chip{display:flex;flex-direction:column;justify-content:center;gap:3px;background:#fafbf7;border-color:#e1e7d8;color:#6b8059}
+.date-chip>span{font-size:8px;line-height:1}
+.date-chip>strong{font-size:12px;line-height:1;font-weight:500}
+.date-chips>button.active{background:#155329;border-color:#155329;color:#fff}
+.date-chips>button:focus-visible{outline:2px solid #6e914e;outline-offset:2px}
+.selection-hint{font-size:9px;line-height:1.6;color:#87977a;margin:8px 0 0}
+.selection-filter-note{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:9px;line-height:1.5;margin-top:8px;padding:7px;background:#edf4e4;border-radius:4px;color:#587047}
+.selection-filter-note button{font-size:9px;text-decoration:underline;color:#155329}
+.day-include{display:flex;align-items:center;gap:5px;font-size:8px;font-weight:400;color:#81956e;cursor:pointer;min-height:24px}
+.day-include input{accent-color:#155329;width:12px;height:12px;margin:0}
+.day-selection-tools{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-size:8px;color:#94a385}
+.day-selection-tools>span{margin-right:auto}
+.day-selection-tools>button{display:flex;align-items:center;gap:3px;border-radius:4px;background:#edf3e6;color:#5d7c42;padding:5px 6px;font-size:8px}
+.day-selection-tools>button:disabled{opacity:.4;cursor:default}
+.slide-position{font-size:10px;color:#7c8f6b;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pagination-note{align-items:flex-start;padding:11px 13px;background:#edf3e5;border:1px solid #dce6cf;border-radius:6px;font-size:10px;margin-top:12px}
+.pagination-note strong{color:#496437;font-weight:500}
+.pagination-note p{margin:4px 0 0;font-size:9px;line-height:1.65}
+.pagination-note .text-button{font-size:9px;margin-top:7px;text-decoration:underline}
+.template-switch{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.template-switch>button{padding:11px 6px;border:1px solid #e2e8d9;border-radius:6px;text-align:left;background:#fff;color:#789069}
+.template-switch>button.active{background:#edf4e4;border-color:#afc990;color:#315f26}
+.template-switch strong{font-size:10px;font-weight:500;display:block}
+.template-switch small{font-size:8px;display:block;color:#94a285;margin-top:5px;line-height:1.5}
+@media(max-width:600px){.date-chips>button{height:46px}.date-chip>span{font-size:9px}.day-include,.day-selection-tools,.day-selection-tools>button{font-size:9px}.day-include{min-height:30px}.day-selection-tools>button{padding:7px 9px}.selection-hint{font-size:10px}}

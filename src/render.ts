@@ -5,12 +5,15 @@ import { dateStamp, daysFor, dayLabel, eventOnDay, formatTime } from './dates';
 import kalamUrl from '@fontsource/kalam/files/kalam-latin-700-normal.woff?url';
 import sansUrl from '@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff?url';
 import boldUrl from '@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff?url';
+import italicUrl from '@fontsource/dm-sans/files/dm-sans-latin-400-italic.woff?url';
+import displayUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-900-normal.woff?url';
+import { textPath, wrap, escape } from './vector-text';
+import { renderList } from './list-layout';
 import condensedUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff?url';
 import JSZip from 'jszip';
 import { localDateFont } from './date-font';
 import designUrl from './assets/design-parts.json?url';
-const FONT_OPTIONS = { features: { liga: false, rlig: false } };
-type FontKey = 'hand' | 'sans' | 'bold' | 'condensed';
+type FontKey = 'hand' | 'sans' | 'bold' | 'condensed' | 'italic' | 'display';
 interface DesignBadge { artwork: string; x: number; y: number; width: number; height: number }
 interface DesignFrame { x: number; y: number; width: number; height: number; rx: number; 'stroke-width': number }
 interface DesignParts { header: string; stamp: string; defs: string; badges: DesignBadge[]; frames: DesignFrame[]; watermark?: string }
@@ -18,7 +21,7 @@ interface Resources { fonts: Record<FontKey, opentype.Font>; designs: Record<str
 let resourcePromise: Promise<Resources> | undefined;
 async function resources(): Promise<Resources> {
   if (!resourcePromise) resourcePromise = (async () => {
-    const fontEntries = await Promise.all(Object.entries({ hand: kalamUrl, sans: sansUrl, bold: boldUrl, condensed: condensedUrl }).map(async ([key, url]) => {
+    const fontEntries = await Promise.all(Object.entries({ hand: kalamUrl, sans: sansUrl, bold: boldUrl, condensed: condensedUrl, italic: italicUrl, display: displayUrl }).map(async ([key, url]) => {
       const response = await fetch(url); if (!response.ok) throw new Error('A local font could not be loaded. Reload the app.');
       const font = opentype.parse(await response.arrayBuffer());
       // These Latin fonts contain contextual GSUB lookups unsupported by OpenType.js.
@@ -34,28 +37,6 @@ async function resources(): Promise<Resources> {
     return { fonts: Object.fromEntries(fontEntries) as Resources['fonts'], designs };
   })().catch(error => { resourcePromise = undefined; throw error; });
   return resourcePromise;
-}
-const escape = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]!));
-function textPath(font: opentype.Font, text: string, x: number, y: number, size: number, fill: string, maxWidth = Infinity, center = false, stroke?: string, strokeWidth = 16): string {
-  const width = font.getAdvanceWidth(text, size, FONT_OPTIONS); const scale = Math.min(1, maxWidth / Math.max(1, width));
-  const path = font.getPath(text, center ? -width / 2 : 0, 0, size, FONT_OPTIONS).toPathData(2);
-  return `<path d="${path}" fill="${fill}" transform="translate(${x} ${y}) scale(${scale} 1)"${stroke ? ` stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round" paint-order="stroke fill"` : ''}/>`;
-}
-function wrap(font: opentype.Font, text: string, size: number, width: number): string[] {
-  const lines: string[] = []; let line = '';
-  // Break overlong words by Unicode codepoint, so URLs cannot escape the frame.
-  for (const word of text.replace(/\s+/g, ' ').trim().split(' ')) {
-    if (!word) continue;
-    if (font.getAdvanceWidth(word, size, FONT_OPTIONS) > width) {
-      if (line) { lines.push(line); line = ''; }
-      for (const character of word) {
-        if (font.getAdvanceWidth(line + character, size, FONT_OPTIONS) > width && line) { lines.push(line); line = ''; }
-        line += character;
-      }
-    } else if (font.getAdvanceWidth(line ? `${line} ${word}` : word, size, FONT_OPTIONS) <= width) line = line ? `${line} ${word}` : word;
-    else { lines.push(line); line = word; }
-  }
-  if (line) lines.push(line); return lines;
 }
 export interface PlacedEvent { event: CalendarEvent; day: string; titleLines: string[]; detailLines: string[]; summaryLines: string[]; height: number }
 export interface RenderedPage { svg: string; width: number; height: number; number: number; total: number; eventCount: number }
@@ -76,6 +57,7 @@ export function dimensions(project: Pick<Project, 'format'>): { width: number; h
 }
 export async function renderProject(project: Project): Promise<RenderResult> {
   const { fonts, designs } = await resources();
+  if (project.template === 'list') return renderList(project,fonts,selectedEvents(project),visibleDays(project),dimensions(project));
   const dateFont = localDateFont();
   const story = project.format === 'story';
   const weekly = project.layout === 'weekly';
@@ -217,7 +199,7 @@ export function download(blob: Blob, filename: string): void {
 }
 export function caption(project: Project): string {
   const days = visibleDays(project), events = selectedEvents(project);
-  return `${project.layout === 'weekly' ? 'This week' : 'This weekend'} at a glance 🌲\n\n${days.map(day => {
+  return `${project.layout === 'weekend' ? 'This weekend' : 'This week'} at a glance 🌲\n\n${days.map(day => {
     const items = events.filter(e => eventOnDay(e, day, project.timezone));
     return items.length ? `${dayLabel(day, 'long')}, ${day}\n${items.map(e => { const edit = project.edits[e.id] || {}; return `• ${(edit.showTitle ?? project.showTitle) ? edit.title ?? e.title : 'Event'}\n  ${(edit.showTime ?? project.showTime) ? edit.timeLabel ?? formatTime(e, day, project.timezone) : ''}${(edit.showLocation ?? project.showLocation) && (edit.location ?? e.location) ? ` · ${edit.location ?? e.location}` : ''}${e.url ? `\n  ${e.url}` : ''}`; }).join('\n')}` : '';
   }).filter(Boolean).join('\n\n')}\n\nTimes: ${project.timezone}. Check event links for the latest details.\n#OverTheEdge #UNBC #PrinceGeorge`;
@@ -226,7 +208,7 @@ export async function exportPages(project: Project, result: RenderResult, type: 
   if (result.warnings.length) throw new Error('Resolve the layout warnings before exporting.');
   if (!result.count) throw new Error('Select an event before exporting.');
   const pages = all ? result.pages : [result.pages[currentPage]];
-  const base = `ote-${project.layout}-${project.week}-${project.palette}`;
+  const base = `ote-${project.template}-${project.layout}-${project.week}-${project.palette}`;
   const blobs = await Promise.all(pages.map(async p => ({ name: `${base}-${String(p.number).padStart(2,'0')}.${type === 'jpeg' ? 'jpg' : type}`, blob: type === 'svg' ? new Blob([p.svg], { type: 'image/svg+xml' }) : await rasterize(p,type) })));
   if (all) {
     const zip = new JSZip(); for (const {name,blob} of blobs) zip.file(name,blob);

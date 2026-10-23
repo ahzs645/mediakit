@@ -1,4 +1,5 @@
-export type Layout = 'weekly' | 'weekend';
+export type Layout = 'weekly' | 'weekend' | 'full-week';
+export type Template = 'cards' | 'list';
 export type Format = 'portrait' | 'story' | 'original';
 export type Provider = 'unbc' | 'tribe' | 'json';
 export interface Source { id: string; name: string; url: string; provider: Provider }
@@ -10,7 +11,7 @@ export interface CalendarEvent {
 export interface EventEdit { title?: string; description?: string; location?: string; timeLabel?: string; showDescription?: boolean; showTitle?: boolean; showTime?: boolean; showLocation?: boolean }
 export interface Palette { name: string; paper: string; ink: string; accent: string; badgeInk: string }
 export interface Project {
-  version: 1; week: string; layout: Layout; format: Format; palette: string;
+  version: 1; week: string; layout: Layout; template: Template; format: Format; palette: string;
   customPalette: Palette; source: Source; events: CalendarEvent[]; manualEvents: CalendarEvent[];
   selected: string[]; edits: Record<string, EventEdit>; fetchedAt: string | null; fetchedRange: string;
   showLocation: boolean; showDescription: boolean; textScale: number; timezone: string;
