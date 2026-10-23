@@ -42,7 +42,7 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 2. Filter events by **source website** and **label**, or search. Source websites come from the original event website in the calendar metadata.
 3. Use a date chip to focus a day. Uncheck a date to omit it from the design. **Fill** suggests an event for one date; **Pick one per day** respects source, label, and search filters. All suggestions remain editable.
 4. Select events. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
-5. Choose Post, Story, or Original, a palette, and field visibility. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
+5. Choose Post, Story, or Original, a palette, and field visibility. **Spacing & date badges** moves the heading and month badge independently and adjusts day badge height. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
 6. Review the live preview and **Layout capacity**. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
@@ -62,13 +62,19 @@ The renderer measures the actual vector-font width of each line, wraps titles, d
 - Month/year stamps follow the dates actually shown. Cross-month and cross-year schedules show both values.
 - Midnight end times are exclusive. Multi-day events appear on each overlapping visible date. Duplicate occurrence IDs are deduplicated while fetching pages.
 
-Output sizes: **Post 1080×1350**, **Story 1080×1920**, and **Original 964×1302** (exactly 2× the supplied 482×651 SVG dimensions). Supplied art proportions are preserved; the small ratio difference is filled with matching background rather than stretching the artwork. Weekend Stories use two tall date boxes reconstructed from the original weekend vectors and the supplied screenshot.
+Output sizes: **Post 1080×1350**, **Story 1080×1920**, and **Original 964×1302** (exactly 2× the supplied 482×651 SVG dimensions). Supplied art proportions are preserved; the small ratio difference is filled with matching background rather than stretching the artwork. Weekday and weekend Stories both use their original supplied SVG artwork. The preview keeps the exact export aspect ratio at desktop and mobile sizes, without adding blank bands.
 
 ## Design fidelity and overlay analysis
 
-Original files are preserved in `design-reference/`. `scripts/prepare-designs.py` separates the original background, title, textures, and badges into reusable semantic SVG layers. The title and decorative artwork remain original vector paths. Figma’s `plus-darker` badge blending is adapted to browser-supported `multiply` so the embedded crumpled-paper texture survives SVG-to-canvas exports. Dates are dynamic text converted to paths using bundled fonts; these date letters approximate the original outlined lettering, since editable source fonts were not included.
+Original files, including the new `Section 1.svg` montage, are preserved in `design-reference/`. `scripts/prepare-designs.py` separates headings, month stamps, frame geometry, badge silhouettes, and embedded paper photographs into semantic SVG layers. The weekend Story is extracted directly from the new montage.
 
-The reproducible aligned overlay report is in **[docs/visual-comparison/index.html](docs/visual-comparison/index.html)**, including reference, output, overlay opacity control, difference images, measurement exclusions, and numeric results.
+The repeating background uses one complete original eleven-letter logo on the original staggered lattice. It continues across the entire canvas, including aspect-ratio padding; duplicate logos in the supplied watermark are removed. Day badges tint the original paper image directly through an SVG colour filter, so their texture survives preview, PNG, JPG, and SVG export without depending on blend-mode support. Badges default to 120% height, with a 100–150% control.
+
+The default heading and last frame use a consistent 4% top/bottom canvas margin. Heading and month positions can move independently from −2% to +1% of canvas height. Settings are saved in project backups, with backward-compatible defaults for older projects.
+
+October 2026 uses the exact supplied Salted vector outlines in every layout. Other months and years remain automatic, using Kalam by default. **Use a local font** loads an OTF, TTF, or WOFF (up to 1 MB), such as Salted, for dynamic months. Local fonts stay in this browser, work offline, and are excluded from project backups and deployments. The separately downloaded Salted file is marked personal use only and is not redistributed in this repository. Day numbers use bundled Barlow Condensed.
+
+The reproducible aligned overlay report is in **[docs/visual-comparison/index.html](docs/visual-comparison/index.html)**, including four original references, output, an overlay opacity control, difference images, and numeric results. Differences include intentional margin, badge height, texture, and date changes; no pixel regions are excluded. [All six export variants](docs/layout-variants.png) show actual output proportions side by side.
 
 Regenerate after artwork changes:
 
@@ -106,7 +112,7 @@ npm run build
 npm run test:offline
 ```
 
-Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, ZIP contents, captions, editing, project backup/restore, refresh, pagination, date changes, mobile tabs, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
+Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, refresh, pagination, date changes, mobile tabs, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
 
 The production offline check reloads with the network disabled and verifies a real PNG download. The offline shell is generated during build by `scripts/build-offline.mjs`. Production files in `dist/` can be served by any static HTTP server; opening `index.html` directly with `file://` is unsupported because browser modules, local fetches, and service workers need an HTTP origin.
 
@@ -114,7 +120,8 @@ The production offline check reloads with the network disabled and verifies a re
 
 - `src/api.ts`: API adapters, pagination, normalization, and text cleaning.
 - `src/dates.ts`: date ranges, local dates, time labels, DST, and multi-day overlap.
-- `src/render.ts`: vector layout, capacity, reflow, image/ZIP exports, and captions.
+- `src/render.ts`: vector layout, repeating watermark, textured badges, capacity, reflow, image/ZIP exports, and captions.
+- `src/date-font.ts`: private browser-local month font import and persistence.
 - `src/storage.ts`: versioned local project persistence and backup validation.
 - `src/App.tsx`: event picker, filters, date controls, preview, and editors.
 - `src/styles.css`: compact desktop workspace and tabbed mobile layout.

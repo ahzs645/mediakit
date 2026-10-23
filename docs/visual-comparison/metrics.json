@@ -3,21 +3,24 @@
     "key": "weekday-post",
     "width": 482,
     "height": 651,
-    "changedPercent": 1.911,
-    "retainedArtworkMatch": 100
+    "changedPercent": 6.822
   },
   {
     "key": "weekend-post",
     "width": 482,
     "height": 651,
-    "changedPercent": 2.471,
-    "retainedArtworkMatch": 99.701
+    "changedPercent": 8.182
   },
   {
     "key": "weekday-story",
     "width": 1080,
     "height": 1945,
-    "changedPercent": 1.495,
-    "retainedArtworkMatch": 100
+    "changedPercent": 6.696
+  },
+  {
+    "key": "weekend-story",
+    "width": 1080,
+    "height": 1945,
+    "changedPercent": 5.904
   }
 ]

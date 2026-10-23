@@ -8,7 +8,7 @@ const realFetch=globalThis.fetch;
 beforeAll(()=>vi.stubGlobal('fetch',async(url:string)=>{
  const filename=basename(String(url));let path;
  if(filename.endsWith('.woff')){const family=filename.startsWith('dm-sans')?'dm-sans':filename.startsWith('kalam')?'kalam':'barlow-condensed';path=join(process.cwd(),'node_modules/@fontsource',family,'files',filename);}
- else path=join(process.cwd(),'public/assets',filename);
+ else path=join(process.cwd(),'src/assets',filename);
  return new Response(await readFile(path));
 }));
 afterAll(()=>{globalThis.fetch=realFetch;});
@@ -20,4 +20,24 @@ describe('production SVG layout engine',()=>{
  it('automatically omits empty dates without losing chosen events',async()=>{const p=newProject();p.week='2026-10-19';p.hideEmptyDays=true;p.events=[event('a')];p.selected=['a'];const r=await renderProject(p);expect(r.capacity).toHaveLength(1);expect(r.count).toBe(1);expect(r.capacity[0].available).toBeGreaterThan(400);});
  it('hides individual fields and prevents fully invisible or oversized events',async()=>{const p=newProject();p.week='2026-10-19';p.events=[event('a')];p.selected=['a'];p.edits.a={showTitle:false,showTime:false,showLocation:false,showDescription:false};let r=await renderProject(p);expect(r.warnings[0]).toContain('every field hidden');p.edits.a={title:'A very detailed event '.repeat(40)};r=await renderProject(p);expect(r.warnings.join()).toContain('too long');p.edits.a={showDescription:false,showLocation:false};r=await renderProject(p);expect(r.warnings).toEqual([]);});
  it('fills the tall weekend Story layout instead of padding a Post',async()=>{const p=newProject();p.week='2026-10-19';p.layout='weekend';p.format='story';p.events=[event('a',24),event('b',25)];p.selected=['a','b'];const r=await renderProject(p);expect(r.pages[0].height).toBe(1920);expect(r.capacity[0].available).toBeGreaterThan(600);expect(r.capacity).toHaveLength(2);expect(r.warnings).toEqual([]);});
+ it('uses original October outlines and reserves the same bottom margin in all six layouts',async()=>{
+  for(const layout of ['weekly','weekend'] as const)for(const format of ['portrait','story','original'] as const){
+   const p={...newProject(),week:'2026-10-19',layout,format};const r=await renderProject(p);const svg=r.pages[0].svg;
+   expect(svg).toContain('aria-label="OCT 2026"');expect(svg).toContain('<use');expect(svg).toContain('id="badge-paper-tone"');
+   const boxes=[...svg.matchAll(/<rect data-day="[^"]+" x="[^"]+" y="([^"]+)" width="[^"]+" height="([^"]+)"/g)];
+   const last=boxes.at(-1)!;const height=format==='story'?1945:651;
+   expect(Number(last[1])+Number(last[2])).toBeCloseTo(height*.96,6);expect(boxes).toHaveLength(layout==='weekly'?5:2);
+   expect(svg).not.toMatch(/\bd="[^"]*(?:NaN|Infinity)/);
+  }
+ });
+ it('moves heading and month independently and increases badge height without changing event capacity',async()=>{
+  const p={...newProject(),week:'2026-10-19'};const original=await renderProject(p);
+  const adjusted=await renderProject({...p,headingOffset:-1,stampOffset:1,badgeHeight:1.5});
+  expect(adjusted.capacity).toEqual(original.capacity);
+  for(const layer of ['heading','month-stamp']){
+   const translation=(svg:string)=>Number(svg.match(new RegExp(`data-layer="${layer}"[^>]*transform="translate\\(0 ([^)]*)\\)`))![1]);
+   expect(translation(adjusted.pages[0].svg)-translation(original.pages[0].svg)).toBeCloseTo(layer==='heading'?-6.51:6.51,6);
+  }
+  expect(adjusted.pages[0].svg).toContain('scale(1 1.5)');
+ });
 });

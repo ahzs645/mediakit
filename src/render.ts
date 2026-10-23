@@ -7,9 +7,13 @@ import sansUrl from '@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff?url
 import boldUrl from '@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff?url';
 import condensedUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff?url';
 import JSZip from 'jszip';
+import { localDateFont } from './date-font';
+import designUrl from './assets/design-parts.json?url';
 const FONT_OPTIONS = { features: { liga: false, rlig: false } };
 type FontKey = 'hand' | 'sans' | 'bold' | 'condensed';
-interface DesignParts { background: string; header: string; defs: string; badges: string[] }
+interface DesignBadge { artwork: string; x: number; y: number; width: number; height: number }
+interface DesignFrame { x: number; y: number; width: number; height: number; rx: number; 'stroke-width': number }
+interface DesignParts { header: string; stamp: string; defs: string; badges: DesignBadge[]; frames: DesignFrame[]; watermark?: string }
 interface Resources { fonts: Record<FontKey, opentype.Font>; designs: Record<string, DesignParts> }
 let resourcePromise: Promise<Resources> | undefined;
 async function resources(): Promise<Resources> {
@@ -22,7 +26,9 @@ async function resources(): Promise<Resources> {
       delete font.tables.gsub;
       return [key, font] as const;
     }));
-    const designResponse = await fetch(`${import.meta.env.BASE_URL}assets/design-parts.json`);
+    // The artwork URL is fingerprinted with the bundle, so an older offline
+    // worker cannot serve a previous layer schema to a newly deployed renderer.
+    const designResponse = await fetch(designUrl);
     if (!designResponse.ok) throw new Error('The local design artwork could not be loaded.');
     const designs = await designResponse.json() as Record<string, DesignParts>;
     return { fonts: Object.fromEntries(fontEntries) as Resources['fonts'], designs };
@@ -70,6 +76,7 @@ export function dimensions(project: Pick<Project, 'format'>): { width: number; h
 }
 export async function renderProject(project: Project): Promise<RenderResult> {
   const { fonts, designs } = await resources();
+  const dateFont = localDateFont();
   const story = project.format === 'story';
   const weekly = project.layout === 'weekly';
   const multiplier = story ? 1080 / 482 : 1;
@@ -80,16 +87,32 @@ export async function renderProject(project: Project): Promise<RenderResult> {
   const logicalCanvasHeight = Math.max(logicalHeight, originalWidth * dims.height / dims.width);
   const padX = (logicalWidth - originalWidth) / 2, padY = (logicalCanvasHeight - logicalHeight) / 2;
   const palette: Palette = project.palette === 'custom' ? project.customPalette : PALETTES[project.palette];
-  const baseDesign = designs[story && weekly ? 'story' : project.layout];
+  const baseDesign = designs[story ? weekly ? 'story' : 'weekend-story' : project.layout];
   const paint = (value: string) => {
     for (const [token, color] of Object.entries({ '__PAPER__': palette.paper, '__INK__': palette.ink, '__ACCENT__': palette.accent, '__BADGEINK__': palette.badgeInk })) value = value.replaceAll(token,color);
-    // Figma's plus-darker blend is not reliably supported by browser SVG-to-canvas.
-    // Multiply preserves the embedded paper texture in previews and exports.
+    // Fallback for any retained Figma blend styles; badges use a colour filter.
     return value.replaceAll('mix-blend-mode:plus-darker','mix-blend-mode:multiply');
   };
-  const header = story && !weekly ? `<g transform="translate(-90 0) scale(2.56)">${baseDesign.header}</g>` : baseDesign.header;
-  const background = story && !weekly ? designs.story.background.replaceAll('1_7789','bg_7789') : baseDesign.background;
-  const template = paint(background + header + baseDesign.defs);
+  // Rebuild the supplied staggered logo lattice from one original vector logo.
+  // Repeating complete logos avoids seams and fills any aspect-ratio padding.
+  const patternScale = story ? 2.974 : 1;
+  let watermark = `<defs><g id="watermark-logo">${paint(designs.weekly.watermark!)}</g></defs><g data-layer="watermark" opacity="0.04" transform="scale(${patternScale})">`;
+  for (let column = -5; column <= 7; column++) for (let row = -3; row <= 6; row++) for (const stagger of [false,true]) {
+    const x = column*120.54 + row*18.106 + (stagger ? 76.743 : 0);
+    const y = column*-11.628 + row*192.384 + (stagger ? 89.664 : 0);
+    if (x+186 < -padX/patternScale || x+113 > logicalWidth/patternScale || y+246 < -padY/patternScale || y+164 > logicalCanvasHeight/patternScale) continue;
+    watermark += `<use href="#watermark-logo" transform="translate(${x} ${y})"/>`;
+  }
+  watermark += '</g>';
+  // A shared 4% edge margin is measured in canvas coordinates, for every format.
+  const headingY = logicalHeight*.04 - (story ? 82.7705 : 28.9775) + project.headingOffset/100*logicalHeight;
+  const stampY = logicalHeight*.04 - (story ? 52.145 : 23.613) + project.stampOffset/100*logicalHeight;
+  const header = `<g data-layer="heading" transform="translate(0 ${headingY})">${paint(baseDesign.header)}</g>`;
+  // Tint the actual embedded paper image, avoiding SVG/canvas blend-mode differences.
+  const [red,green,blue] = [1,3,5].map(i=>parseInt(palette.accent.slice(i,i+2),16)/255);
+  const matrix = [red,green,blue].map(c=>`${c*.2126} ${c*.7152} ${c*.0722} 0 0`).join(' ');
+  const texture = `<filter id="badge-paper-tone" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%"><feComponentTransfer><feFuncR type="linear" slope="2.5" intercept="-1.5"/><feFuncG type="linear" slope="2.5" intercept="-1.5"/><feFuncB type="linear" slope="2.5" intercept="-1.5"/></feComponentTransfer><feColorMatrix type="matrix" values="${matrix} 0 0 0 1 0"/></filter>`;
+  const template = watermark + header + paint(baseDesign.defs) + `<defs>${texture}</defs>`;
   const days = visibleDays(project);
   const events = selectedEvents(project);
   const warnings: string[] = [];
@@ -97,17 +120,15 @@ export async function renderProject(project: Project): Promise<RenderResult> {
   const cancelled = events.filter(e => /cancelled|canceled|postponed/i.test(e.status));
   if (cancelled.length) warnings.push(`${cancelled.length} selected event(s) are cancelled or postponed. Remove them before exporting.`);
   const fullDayCount = weekly ? 5 : 2;
-  const reflow = days.length !== fullDayCount;
-  const bodyTop = story ? 428 : weekly ? 151 : 174;
-  const bodyBottom = story ? 1823 : weekly ? 615 : 603;
+  const bodyTop = baseDesign.frames[0].y;
+  const bodyBottom = logicalHeight*.96;
   const gap = story ? (weekly ? 38 : 44) : weekly ? 14.75 : 33;
   const flexibleHeight = (bodyBottom - bodyTop - Math.max(0,days.length-1)*gap)/Math.max(1,days.length);
   const rows = days.map((day, i) => {
-    const x = story ? (weekly ? 168 : 190) : weekly ? 59 : i === 0 ? 95 : 96;
-    const y = reflow ? bodyTop+i*(flexibleHeight+gap) : story ? weekly ? [428,714,1002,1288,1575][i] : [428,1146][i] : weekly ? [151,246,343,438,534][i] : [174,404][i];
-    const w = story ? (weekly ? 832 : 810) : weekly ? 396 : i === 0 ? 360 : 359;
-    const h = reflow ? flexibleHeight : story ? weekly ? [248,250,248,249,248][i] : [674,677][i] : weekly ? [81,82,81,82,81][i] : [197,199][i];
-    const left = x + (weekly ? 32 * multiplier : 61*multiplier), right = x + w - 14 * multiplier;
+    const frame = baseDesign.frames[i] || baseDesign.frames[0];
+    const x = frame.x, y = bodyTop+i*(flexibleHeight+gap), w = frame.width, h = flexibleHeight;
+    const badge = baseDesign.badges[i] || baseDesign.badges[0];
+    const left = Math.max(x+14*multiplier,badge.x+badge.width+10*multiplier), right = x + w - 14 * multiplier;
     const contentWidth = right - left;
     const entries = events.filter(e => eventOnDay(e,day,project.timezone)).map(event => {
       const edit = project.edits[event.id] || {};
@@ -130,7 +151,7 @@ export async function renderProject(project: Project): Promise<RenderResult> {
       if (used+entry.height > h-20*multiplier && chunks.at(-1)!.length) { chunks.push([]); used=0; }
       chunks.at(-1)!.push(entry); used+=entry.height;
     }
-    return {day,x,y,w,h,left,right,chunks,entries};
+    return {day,x,y,w,h,left,right,chunks,entries,frame,badge};
   });
   const pageCount = Math.max(1,...rows.map(r=>r.chunks.length));
   if (pageCount > 10) warnings.push('This selection needs more than 10 slides. Choose fewer events for a readable set.');
@@ -138,24 +159,28 @@ export async function renderProject(project: Project): Promise<RenderResult> {
   const [month, year] = dateStamp(days.length ? days : daysFor(project.week,project.layout));
   const pages = Array.from({ length: pageCount }, (_, page) => {
     let content = '';
-    const stampX = (story ? 861 : 371), stampY = (story ? 185 : 66);
+    const stampX = (story ? 861 : 371), stampBaseline = (story ? 185 : 66);
     const stampScale = story ? 2.9 : 1;
-    content += textPath(fonts.hand, month, stampX, stampY, 33 * stampScale, palette.paper, 78 * stampScale, true, palette.accent, 21.8453*stampScale);
-    content += textPath(fonts.hand, year, stampX - stampScale, stampY + 37 * stampScale, 34 * stampScale, palette.paper, 78 * stampScale, true, palette.accent, 21.8453*stampScale);
+    content += `<g data-layer="month-stamp" aria-label="${escape(`${month} ${year}`)}" transform="translate(0 ${stampY})">`;
+    // October 2026 uses the exact supplied Salted outlines, including its contour.
+    if (month === 'OCT' && year === '2026') content += paint(baseDesign.stamp);
+    else {
+      const font = dateFont?.font || fonts.hand;
+      content += textPath(font, month, stampX, stampBaseline+(dateFont ? 10*stampScale : 0), (dateFont ? 45 : 33)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (dateFont ? 43.69 : 21.8453)*stampScale);
+      content += textPath(font, year, stampX-stampScale, stampBaseline+37*stampScale+(dateFont ? 10*stampScale : 0), (dateFont ? 43 : 34)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (dateFont ? 43.69 : 21.8453)*stampScale);
+    }
+    content += '</g>';
     let eventCount = 0;
     rows.forEach((row, index) => {
-      const originalY = story && weekly ? [428,714,1002,1288,1575][index] : weekly ? [151,246,343,438,534][index] : [174,404][index];
-      const originalH = story && weekly ? [248,250,248,249,248][index] : weekly ? [81,82,81,82,81][index] : [197,199][index];
-      const badgeScale = story && !weekly ? multiplier : 1;
-      const offsetY = story && !weekly ? row.y + 44 - [235,462][index]*multiplier : row.y+row.h/2-originalY-originalH/2;
-      content += `<rect x="${row.x}" y="${row.y}" width="${row.w}" height="${row.h}" rx="${story ? 12.7279 : 2.90649}" fill="${palette.paper}" stroke="${palette.accent}" stroke-width="${story ? 2.93722 : 0.670728}" stroke-dasharray="${story ? 9.79 : 2.24} ${story ? 9.79 : 2.24}"/>`;
-      content += `<g transform="translate(0 ${offsetY}) scale(${badgeScale})">${paint(baseDesign.badges[index] || baseDesign.badges[0])}</g>`;
-      const badgeX = story ? weekly ? [154,154,160,160,160][index] : 88*multiplier : weekly ? [54,53,50,55,55][index] : 88;
-      const originalBaseline = story && weekly ? [545,830,1111,1398,1665][index] : weekly ? [185,285,378,472,568][index] : [274,504][index];
-      const badgeY = originalBaseline*badgeScale + offsetY;
-      const badgeSize = (weekly ? 16 : 28)*multiplier;
-      content += textPath(fonts.condensed,dayLabel(row.day).toUpperCase(),badgeX,badgeY,badgeSize,palette.badgeInk,(weekly?42:78)*multiplier,true);
-      content += textPath(fonts.condensed,String(Number(row.day.slice(8))),badgeX,badgeY+(weekly?17:31)*multiplier,badgeSize,palette.badgeInk,40*multiplier,true);
+      content += `<rect data-day="${row.day}" x="${row.x}" y="${row.y}" width="${row.w}" height="${row.h}" rx="${row.frame.rx}" fill="${palette.paper}" stroke="${palette.accent}" stroke-width="${row.frame['stroke-width']}" stroke-dasharray="${row.frame['stroke-width']*3.333} ${row.frame['stroke-width']*3.333}"/>`;
+      const badgeH = row.badge.height*project.badgeHeight;
+      const badgeTop = story && !weekly ? row.y+(row.badge.y-row.frame.y)-(badgeH-row.badge.height)/2 : row.y+(row.h-badgeH)/2;
+      content += `<g data-day-badge="${row.day}" transform="translate(${row.badge.x} ${badgeTop}) scale(1 ${project.badgeHeight})">${paint(row.badge.artwork)}</g>`;
+      const badgeX = row.badge.x+row.badge.width/2;
+      const badgeY = badgeTop+badgeH/2-3*multiplier;
+      const badgeSize = (weekly ? 16 : 24)*multiplier;
+      content += textPath(fonts.condensed,dayLabel(row.day).toUpperCase(),badgeX,badgeY,badgeSize,palette.badgeInk,row.badge.width*.8,true);
+      content += textPath(fonts.condensed,String(Number(row.day.slice(8))),badgeX,badgeY+badgeSize*1.1,badgeSize,palette.badgeInk,row.badge.width*.7,true);
       let baseline = row.y + 19 * multiplier;
       const chunk = row.chunks[page] || [];
       const clipId = `clip-content-${index}`;

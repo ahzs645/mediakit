@@ -41,7 +41,7 @@ test('exports full-resolution PNG, JPEG, portable SVG, and a ZIP with caption',a
     await page.getByLabel('File format').selectOption(format);const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download current slide'}).click();const dl=await next;const buffer=await fs.readFile((await dl.path())!);
     if(format==='svg'){expect(buffer.toString()).toContain('<path');expect(buffer.toString()).not.toContain('<text');expect(/__PAPER__|__ACCENT__|__INK__|\bd="[^"]*(?:NaN|Infinity)/.test(buffer.toString())).toBe(false);}
     const image=sharp(buffer);const meta=await image.metadata();expect(meta.width).toBe(1080);expect(meta.height).toBe(1350);
-    const pixels=await image.removeAlpha().raw().toBuffer();expect([...pixels.subarray(0,3)]).toEqual(format==='jpeg'?expect.arrayContaining([expect.any(Number)]):[227,239,207]);
+    const pixels=await image.removeAlpha().raw().toBuffer();for(const [i,value]of [227,239,207].entries())expect(Math.abs(pixels[i]-value)).toBeLessThan(15); // Edge watermark tints the paper; JPEG also introduces rounding.
   }
   await page.getByLabel('File format').selectOption('png');const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download all slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));expect(Object.keys(zip.files)).toHaveLength(2);const text=await zip.file('caption.txt')!.async('string');expect(text).toContain('2026-10-19');expect(text).toContain('https://overtheedge.unbc.ca/event/19-0/');expect(text).toContain('America/Vancouver');
 });
@@ -95,4 +95,64 @@ test('date selection, sources, labels, field switches, and capacity reflow stay 
 
 test('cancelled events are disabled, but a newly cancelled selection can be removed',async({page})=>{
   await setup(page);await pick(page);await page.route(endpoint,route=>{const data=fixture();data.events[0].status='cancelled';return route.fulfill({json:data});});await page.getByRole('button',{name:'Refresh calendar'}).click();await expect(page.locator('.layout-warnings')).toContainText('cancelled');const checkbox=page.getByRole('checkbox',{name:'Select Campus event 19.1',exact:true});await expect(checkbox).toBeEnabled();await checkbox.uncheck();await expect(checkbox).toBeDisabled();await expect(page.locator('.layout-warnings')).toHaveCount(0);
+});
+
+test('preview keeps its export ratio at desktop, narrow, and mobile widths',async({page})=>{
+  await setup(page);
+  for(const width of [1440,1024,390]){
+    await page.setViewportSize({width,height:844});
+    if(width===390)await page.getByRole('button',{name:'2. Preview'}).click();
+    for(const [format,ratio]of [['portrait',1080/1350],['story',1080/1920],['original',964/1302]] as const){
+      // Change format through the app, including the separate mobile Design tab.
+      if(width===390)await page.getByRole('button',{name:'3. Design & export'}).click();
+      await page.getByRole('button',{name:format==='portrait'?'Post 4:5':format==='story'?'Story 9:16':'Original Figma',exact:true}).click();
+      if(width===390)await page.getByRole('button',{name:'2. Preview'}).click();
+      await ready(page);
+      const rect=await page.locator('.artboard').boundingBox();expect(rect!.width/rect!.height).toBeCloseTo(ratio,2);
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    }
+  }
+});
+
+test('browser PNGs retain watermark edges, paper texture, and margins in every colour and layout',async({page})=>{
+  await setup(page);
+  const checks=await page.evaluate(async()=>{
+    const {newProject}=await import('/src/storage.ts');const{renderProject,rasterize}=await import('/src/render.ts');
+    const{PALETTES}=await import('/src/types.ts');const checks=[];
+    for(const format of ['portrait','story','original'] as const)for(const layout of ['weekly','weekend'] as const)for(const palette of ['cream','sage','forest']){
+      const result=await renderProject({...newProject(),week:'2026-10-19',format,layout,palette});const p=result.pages[0];
+      const bitmap=await createImageBitmap(await rasterize(p));const canvas=document.createElement('canvas');canvas.width=p.width;canvas.height=p.height;const ctx=canvas.getContext('2d')!;ctx.drawImage(bitmap,0,0);bitmap.close();
+      const pixels=ctx.getImageData(0,0,p.width,p.height).data;const paper=[1,3,5].map(i=>parseInt(PALETTES[palette].paper.slice(i,i+2),16));
+      const w=p.width,h=p.height;const bands=[{x:0,y:0,w,h:Math.floor(h*.02)},{x:0,y:Math.ceil(h*.98),w,h:Math.floor(h*.02)},{x:0,y:0,w:Math.floor(w*.015),h},{x:Math.ceil(w*.985),y:0,w:Math.floor(w*.015),h}];
+      const edges=bands.map(b=>{let count=0;for(let y=b.y;y<b.y+b.h;y++)for(let x=b.x;x<b.x+b.w;x++){const i=(y*w+x)*4;if(paper.some((c,j)=>Math.abs(pixels[i+j]-c)>2))count++;}return count/(b.w*b.h);});
+      const div=document.createElement('div');div.style.cssText='position:fixed;left:-10000px';div.innerHTML=p.svg;document.body.append(div);
+      const svg=div.querySelector('svg')!;const vb=svg.viewBox.baseVal;const badge=div.querySelector('[data-day-badge]') as SVGGraphicsElement;const bounds=badge.getBBox();const matrix=badge.getCTM()!;
+      const point=new DOMPoint(bounds.x+bounds.width*.45,bounds.y+bounds.height*.15).matrixTransform(matrix);
+      const patch=ctx.getImageData(Math.round(point.x),Math.round(point.y),Math.round(w*.015),Math.round(h*.01)).data;
+      // This patch is inside the badge, above its lettering: variation is paper texture.
+      let min=255,max=0;for(let i=0;i<patch.length;i+=4){min=Math.min(min,patch[i+1]);max=Math.max(max,patch[i+1]);}
+      const last=div.querySelector('[data-day]:last-of-type') || [...div.querySelectorAll('[data-day]')].at(-1)!;
+      const bottom=Number(last.getAttribute('y'))+Number(last.getAttribute('height'));
+      checks.push({format,layout,palette,edges,texture:max-min,bottomMargin:(vb.height-bottom)/vb.height});div.remove();
+    }
+    return checks;
+  });
+  for(const check of checks){for(const edge of check.edges)expect(edge,JSON.stringify(check)).toBeGreaterThan(.01);expect(check.texture,JSON.stringify(check)).toBeGreaterThan(4);expect(check.bottomMargin).toBeCloseTo(.04,4);}
+});
+
+test('spacing controls save and local fonts stay out of project backups',async({page})=>{
+  await setup(page);await pick(page);
+  await page.getByRole('slider',{name:'Heading position',exact:true}).press('Home');
+  await page.getByRole('slider',{name:'Month badge position',exact:true}).press('End');
+  await page.getByRole('slider',{name:'Day badge height',exact:true}).press('End');await ready(page);
+  await expect(page.locator('.layout-controls')).toContainText('150%');
+  // A locally bundled OFL font tests the upload path without redistributing Salted.
+  await page.getByLabel('Local month font',{exact:true}).setInputFiles('node_modules/@fontsource/kalam/files/kalam-latin-700-normal.woff');
+  await expect(page.locator('.local-font-control')).toContainText('Kalam');
+  await page.getByLabel('Week starting').fill('2026-11-02');await ready(page);
+  await page.waitForTimeout(400);await page.reload();await expect(page.locator('.local-font-control')).toContainText('Kalam');
+  const download=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();const saved=JSON.parse(await fs.readFile((await(await download).path())!,'utf8'));
+  expect(saved).toMatchObject({headingOffset:-2,stampOffset:1,badgeHeight:1.5});expect(saved).not.toHaveProperty('dateFont');expect(JSON.stringify(saved)).not.toContain('base64');
+  await page.getByRole('button',{name:'Remove font',exact:true}).click();await expect(page.locator('.local-font-control')).toContainText('Original artwork');
+  await page.getByRole('button',{name:'Reset spacing',exact:true}).click();await expect(page.getByRole('slider',{name:'Day badge height',exact:true})).toHaveValue('1.2');
 });
