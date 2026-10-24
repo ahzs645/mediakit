@@ -17,6 +17,7 @@ export interface Project {
   showLocation: boolean; showDescription: boolean; textScale: number; timezone: string;
   skippedDays: string[]; hideEmptyDays: boolean; showTime: boolean; showTitle: boolean;
   headingOffset: number; stampOffset: number; badgeHeight: number;
+  hideTeams: boolean;
 }
 export const DEFAULT_SOURCE: Source = { id: 'ote', name: 'Over the Edge', url: 'https://overtheedge.unbc.ca/wp-json/unbc-events/v1/events/', provider: 'unbc' };
 export const PALETTES: Record<string, Palette> = {

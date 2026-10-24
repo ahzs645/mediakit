@@ -1,10 +1,18 @@
 /* Shared additions. The three desktop columns keep their existing layout. */
-.mobile-project-button, .mobile-filter-button, .mobile-export-panel { display: none; }
+.mobile-project-button, .mobile-filter-button, .mobile-export-panel,
+.mobile-week-picker, .mobile-range-select { display: none; }
+.week-options { padding: 20px; }
+.week-navigation { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
 .search-controls { display: flex; gap: 8px; }
 .search-controls .search-field { flex: 1; min-width: 0; }
 .project-menu { padding: 20px; display: grid; gap: 12px; }
 .project-menu p, .download-note { font-size: 11px; line-height: 1.7; color: #687c5f; }
 .download-note { text-align: center; margin-top: 12px; }
+.teams-filter { display: flex; align-items: center; gap: 7px; min-height: 32px; font-size: 10px; color: #627851; cursor: pointer; }
+.teams-filter input { width: 14px; height: 14px; margin: 0; accent-color: #155329; }
+.teams-filter small { margin-left: auto; font-size: 10px; color: #778a69; }
+.teams-filter-status { display: flex; flex-wrap: wrap; align-items: center; gap: 3px 8px; font-size: 9px; line-height: 1.6; color: #738568; margin: 3px 0; }
+.teams-filter-status button { font-size: inherit; color: #155329; text-decoration: underline; padding: 3px 0; }
 
 @media (max-width: 760px), (max-width: 1000px) and (max-height: 500px) {
   :root { font-size: 14px; --muted: #687862; }
@@ -35,22 +43,29 @@
     display: flex; flex-direction: column;
   }
   .workspace-toolbar {
-    flex-direction: column; flex-shrink: 0;
-    min-height: 0; gap: 3px; padding: 5px 0 8px; margin: 0;
-    align-items: stretch;
+    flex-direction: row; flex-shrink: 0;
+    min-height: 0; gap: 8px; padding: 7px 0; margin: 0;
+    align-items: center;
   }
-  .date-controls { gap: 0; width: 100%; }
-  .toolbar-label { display: none; }
-  .date-picker {
-    min-width: 0; height: 44px; flex: 1;
-    font-size: 13px; justify-content: center; border-color: transparent; background: transparent;
+  .date-controls { gap: 0; flex: 1; min-width: 0; width: auto; }
+  .date-controls > :not(.mobile-week-picker) { display: none; }
+  .mobile-week-picker {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    width: 100%; min-width: 0; height: 44px; padding: 0 12px;
+    border: 1px solid #dce4d5; border-radius: 8px; background: white;
+    font-size: 13px; color: #405a34;
   }
-  .date-picker:focus-within { outline: 2px solid #749957; outline-offset: -2px; }
-  .today-button { font-size: 11px; min-height: 44px; padding: 0 9px; margin: 0; }
-  .toolbar-right { flex-direction: row; width: 100%; gap: 10px; justify-content: space-between; }
-  .timezone { font-size: 10px; margin: 0 6px; white-space: nowrap; }
-  .layout-switch { flex: 1; padding: 2px; }
-  .layout-switch > button { flex: 1; padding: 8px 6px; min-height: 36px; font-size: 12px; }
+  .mobile-week-picker > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-week-picker > svg { flex-shrink: 0; }
+  .toolbar-right { width: 120px; flex: 0 0 120px; display: block; }
+  .toolbar-right .timezone, .toolbar-right .layout-switch { display: none; }
+  .mobile-range-select { display: flex; position: relative; align-items: center; width: 100%; }
+  .mobile-range-select select {
+    width: 100%; height: 44px; appearance: none; padding: 0 26px 0 12px;
+    border: 1px solid #dce4d5; border-radius: 8px; background: #edf3e7;
+    font-size: 16px; color: #405a34;
+  }
+  .mobile-range-select > svg { position: absolute; right: 9px; pointer-events: none; }
 
   /* The active panel owns its scrolling; the workspace tabs always stay reachable. */
   .studio-grid {
@@ -93,6 +108,12 @@
   .mobile-filter-button > span { background: #155329; color: white; border-radius: 9px; font-size: 10px; padding: 1px 5px; }
   .event-filters .filter-row { display: none; }
   .event-filters.filters-expanded .filter-row { display: flex; margin-top: 8px; }
+  .event-filters .teams-filter { display: none; }
+  .event-filters.filters-expanded .teams-filter { display: flex; min-height: 44px; font-size: 12px; gap: 8px; }
+  .teams-filter input { width: 17px; height: 17px; }
+  .teams-filter small { font-size: 11px; }
+  .teams-filter-status { font-size: 11px; margin: 5px 0 2px; }
+  .teams-filter-status button { min-height: 32px; }
   .category-select { padding: 0 8px; min-height: 44px; background: #f8faf5; border-radius: 7px; }
   .category-select select { font-size: 16px; min-height: 42px; padding-right: 14px; }
   .date-selection-heading { font-size: 11px; margin: 3px 0 1px; min-height: 36px; }
@@ -260,14 +281,12 @@
   .studio-grid.mobile-export > .mobile-export-panel { height: auto; }
   .events-scroll, .design-scroll, .mobile-export-scroll { overflow: visible; }
   .studio-grid.mobile-preview > .preview-panel { min-height: 420px; }
-  .workspace-toolbar { flex-direction: row; align-items: center; gap: 8px; }
-  .toolbar-right { width: 45%; }
-  .date-controls { flex: 1; }
-  .timezone { display: none; }
 }
 
 @media (max-width: 359px) {
   .timezone { display: none; }
+  .toolbar-right { width: 110px; flex-basis: 110px; }
+  .mobile-week-picker { font-size: 12px; padding: 0 9px; }
   .day-selection-tools > button { padding: 6px; font-size: 10px; }
   .day-selection-tools { gap: 4px; }
   .date-chips { gap: 3px; }

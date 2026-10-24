@@ -39,18 +39,20 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 ## Workflow
 
 1. Choose a week and Weekdays or Weekend. Vancouver time is used consistently, with B.C.’s permanent UTC−7 rule from March 8, 2026 and historical daylight-saving changes before then.
-2. Filter events by **source website** and **label**, or search. Source websites come from the original event website in the calendar metadata.
+2. Filter events by **source website** and **label**, or search. Source websites come from the original event website in the calendar metadata. **Hide Microsoft Teams events** is enabled by default, including for older projects. It recognizes Teams venues, MS Teams aliases, and direct meeting URLs. Turn it off under **Filters** to include those events in browsing and suggestions. Existing selections stay in the design; the hidden-events notice identifies selected Teams events and lets you reveal them. The preference saves with the project and its backups.
 3. Date chips only browse events for a day; they never hide a date or remove selections. Each day has a separate **In design** checkbox for omitting that date. **Selected only** explicitly filters the event list, with a **Show all events** action to return to browsing.
 4. Select as many event cards as needed, including multiple events per date. **Select all** adds every matching event for a date. **Suggest** adds the next unselected event; **Add suggestions** adds one new event per visible, included date. Suggestions respect source, label, and search filters and preserve all earlier selections, including selections from other views. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
 5. Choose **Original cards** or **Weekly list**, then Post, Story, or Original, a palette, and field visibility. Weekly list starts with all seven days in Story format and times off; use Weekdays, Weekend, or Full week and enable times if wanted. **Spacing & date badges** moves the heading and month badge independently and adjusts day badge height. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
 6. Review the live preview and **Layout capacity**. The slide counter shows which image you are viewing. If the original cards have room for one event per date, extra selections go onto additional slides; the visible notice shows total selections, slide count, and how many events appear on the current slide. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
-On mobile, four persistent bottom tabs keep the workflow within reach: **Events → Design → Preview → Export**. Source and label filters expand from **Filters**, with an active-filter count. Date chips scroll horizontally when seven days need more room. Each panel keeps its scroll position and selections when switching tabs. The preview fits its actual export ratio, and the Export tab downloads images or ZIPs directly. **⋯** opens project backup, restore, and help.
+On mobile, four persistent bottom tabs keep the workflow within reach: **Events → Design → Preview → Export**. A single toolbar row contains the week picker and a **Weekdays / Weekend / Full week** dropdown (Full week is available in Weekly list). The week picker opens previous/next, This week, and a date input; any chosen date resolves to its Monday. Source, label, and Teams filters expand from **Filters**, with an active-filter count. Date chips scroll horizontally when seven days need more room. Each panel keeps its scroll position and selections when switching tabs. The preview fits its actual export ratio, and the Export tab downloads images or ZIPs directly. **⋯** opens project backup, restore, and help.
 
 Phone controls use larger touch targets and 16px form inputs. Safe-area padding supports notches and home indicators. The layout follows the visual viewport when the keyboard opens; event editors keep a sticky save action. Short phones and landscape use a scrollable panel while retaining the bottom tabs. Desktop keeps its three-column workspace.
 
 [Events on mobile](docs/mobile-events.png) · [Design on mobile](docs/mobile-design.png) · [Export on mobile](docs/mobile-export.png)
+
+[Compact date controls](docs/mobile-toolbar.png) · [Teams filter](docs/mobile-teams-filter.png)
 
 B.C.’s [official permanent-time change](https://www2.gov.bc.ca/gov/content/governments/celebrating-british-columbia/daylight-saving-time) is handled explicitly so older browser time-zone databases do not move winter events by one hour.
 
@@ -127,7 +129,7 @@ npm run build
 npm run test:offline
 ```
 
-Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, multiple selections per date, date browsing without deselection, additive suggestions, per-day bulk selection, seven-day list exports, refresh, pagination, date changes, mobile tabs, 320–430px portrait and phone landscape layouts, keyboard-reduced viewports, editor typing focus, accessible tab navigation, source/label filters, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
+Browser tests use installed Google Chrome (`channel: 'chrome'`). They cover actual browser downloads and inspect PNG/JPG/SVG sizes, palette pixels, watermark coverage on all four edges, paper texture, consistent margins in all six layouts and three original palettes, ZIP contents, captions, editing, project backup/restore, spacing controls, local font uploads, multiple selections per date, date browsing without deselection, additive suggestions, per-day bulk selection, seven-day list exports, refresh, pagination, date changes, mobile tabs, 320–430px portrait and phone landscape layouts, keyboard-reduced viewports, editor typing focus, accessible tab navigation, one-row date/range controls, cross-year week navigation, source/label filters, Teams filtering and preference persistence, preservation of selected Teams events in exports, skipped days, field visibility, cancellation, and connection failures. One integration test calls the real UNBC API and therefore requires the site to be reachable.
 
 The production offline check reloads with the network disabled and verifies a real PNG download. The offline shell is generated during build by `scripts/build-offline.mjs`. Production files in `dist/` can be served by any static HTTP server; opening `index.html` directly with `file://` is unsupported because browser modules, local fetches, and service workers need an HTTP origin.
 
@@ -140,6 +142,7 @@ The production offline check reloads with the network disabled and verifies a re
 - `src/vector-text.ts`: shared vector lettering and wrapping helpers.
 - `src/date-font.ts`: private browser-local month font import and persistence.
 - `src/storage.ts`: versioned local project persistence and backup validation.
+- `src/event-filters.ts`: Teams venue and meeting-link detection.
 - `src/App.tsx`: event picker, filters, date controls, preview, and editors.
 - `src/WorkspaceTabs.tsx`: accessible four-tab navigation and responsive visual viewport handling.
 - `src/ExportOptions.tsx`: shared desktop dialog / mobile export controls.

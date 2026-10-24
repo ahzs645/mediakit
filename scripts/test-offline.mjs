@@ -24,7 +24,7 @@ try {
  const metadata=await sharp(await readFile(await download.path())).metadata();
  if(metadata.width!==1080||metadata.height!==1350||errors.length)throw new Error(`Invalid offline export: ${JSON.stringify({width:metadata.width,height:metadata.height,errors})}`);
  await page.getByRole('button',{name:'Close dialog',exact:true}).click();
- await page.getByRole('button',{name:'Weekly list',exact:false}).click();
+ await page.getByRole('button',{name:/^Weekly list/}).click();
  await page.waitForFunction(()=>!document.querySelector('.export-main')?.disabled);
  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('ote-media-studio-v1')||'{}').template==='list');
  await page.reload();

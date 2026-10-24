@@ -4,6 +4,7 @@ import { cleanText, fetchEvents, normalizeEvent, safeUrl, simplifyText } from '.
 import { newProject, parseProject } from '../src/storage';
 import { DEFAULT_SOURCE } from '../src/types';
 import type { CalendarEvent } from '../src/types';
+import { isTeamsEvent } from '../src/event-filters';
 const event: CalendarEvent = { id:'ote:1',sourceId:'ote',title:'Campus night',description:'',start:'2026-10-23T01:00:00Z',end:'2026-10-23T03:00:00Z',allDay:false,location:'UNBC',category:'Campus',url:'',status:'scheduled',cost:'' };
 afterEach(()=>vi.unstubAllGlobals());
 describe('calendar calculations',()=>{
@@ -35,8 +36,14 @@ describe('public API adapters',()=>{
  it('reports unsupported endpoints and HTTP errors',async()=>{vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(new Response('{}')).mockResolvedValueOnce(new Response('',{status:503})));await expect(fetchEvents(DEFAULT_SOURCE,'2026-10-19')).rejects.toThrow('did not return events');await expect(fetchEvents(DEFAULT_SOURCE,'2026-10-19')).rejects.toThrow('503');});
 });
 describe('portable project files',()=>{
+ it('defaults Teams hiding on for new and older projects, and preserves the saved preference',()=>{const p=newProject();expect(p.hideTeams).toBe(true);const old=JSON.parse(JSON.stringify(p));delete old.hideTeams;expect(parseProject(old).hideTeams).toBe(true);expect(parseProject({...p,hideTeams:false}).hideTeams).toBe(false);expect(()=>parseProject({...p,hideTeams:'yes'})).toThrow();});
  it('upgrades older projects and validates spacing controls',()=>{const p=newProject();const old=JSON.parse(JSON.stringify(p));delete old.headingOffset;delete old.stampOffset;delete old.badgeHeight;expect(parseProject(old)).toMatchObject({headingOffset:0,stampOffset:0,badgeHeight:1.2});for(const patch of [{headingOffset:4},{stampOffset:NaN},{badgeHeight:0}])expect(()=>parseProject({...p,...patch})).toThrow();});
  it('round trips the list template and full week, while old projects keep original cards',()=>{const p=newProject();const old=JSON.parse(JSON.stringify(p));delete old.template;expect(parseProject(old).template).toBe('cards');expect(parseProject({...p,template:'list',layout:'full-week'})).toMatchObject({template:'list',layout:'full-week'});expect(()=>parseProject({...p,layout:'full-week'})).toThrow();});
  it('round trips local edits and selections',()=>{const p=newProject();p.events=[event];p.selected=[event.id,event.id];p.edits={[event.id]:{title:'Short title'}};const restored=parseProject(JSON.parse(JSON.stringify(p)));expect(restored.selected).toEqual([event.id]);expect(restored.edits[event.id].title).toBe('Short title');});
  it('rejects invalid structure, paint injection, and unsafe endpoints',()=>{const p=newProject();expect(()=>parseProject({})).toThrow();expect(()=>parseProject({...p,customPalette:{...p.customPalette,paper:'url(https://attacker.test)'}})).toThrow();expect(()=>parseProject({...p,source:{...p.source,url:'javascript:evil()'}})).toThrow();expect(()=>parseProject({...p,timezone:'Mars/Unknown'})).toThrow();expect(()=>parseProject({...p,edits:{a:{title:12}}})).toThrow();});
+});
+describe('Microsoft Teams venues',()=>{
+ it('recognizes named venues, common aliases, and meeting links',()=>{for(const location of ['Microsoft Teams','MS Teams','MS-Teams','microsoft teams (online)','Teams','Online via Teams','Teams (virtual)','https://teams.microsoft.com/l/meetup-join/123','https://teams.live.com/meet/123','https://teams.cloud.microsoft/meet/123'])expect(isTeamsEvent({...event,location}),location).toBe(true);expect(isTeamsEvent({...event,url:'https://teams.microsoft.com/l/meetup-join/123'})).toBe(true);});
+ it('keeps physical events whose titles or descriptions merely mention teams',()=>{for(const location of ['Student centre','Teams Canada training centre','Sports teams room','Library'])expect(isTeamsEvent({...event,location,title:'Teams practice',description:'We also discuss Microsoft Teams.'}),location).toBe(false);});
+ it('keeps the source venue classification after display edits and accepts an explicit Teams venue edit',()=>{expect(isTeamsEvent({...event,location:'Microsoft Teams'},{location:''})).toBe(true);expect(isTeamsEvent(event,{location:'MS Teams'})).toBe(true);});
 });

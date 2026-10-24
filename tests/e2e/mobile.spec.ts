@@ -6,14 +6,14 @@ import JSZip from 'jszip';
 
 test.use({ hasTouch: true, isMobile: true });
 
-async function setup(page: Page) {
+async function setup(page: Page, teams = false) {
   await page.clock.setFixedTime(new Date('2026-10-22T20:00:00Z'));
   await page.route('**/wp-json/unbc-events/v1/events/**', route => route.fulfill({ json: {
     events: Array.from({ length: 35 }, (_, index) => {
       const day = 19 + Math.floor(index / 5);
       return { id: String(index), title: `Campus gathering ${day}.${index % 5 + 1}`, description: 'Meet your campus community. Bring a friend.', startDate: `2026-10-${day}T17:00:00Z`, endDate: `2026-10-${day}T18:00:00Z`, category: 'unbc', status: 'scheduled' };
     }),
-    eventMetadata: Object.fromEntries(Array.from({ length: 35 }, (_, index) => [String(index), { location: 'Student centre', categories: [{ name: index % 2 ? 'Community' : 'UNBC' }], website: `https://${index % 2 ? 'tourismpg.com' : 'www.unbc.ca'}/events/${index}` }])),
+    eventMetadata: Object.fromEntries(Array.from({ length: 35 }, (_, index) => [String(index), { location: teams ? ({0:'Microsoft Teams',1:'MS Teams',2:'https://teams.microsoft.com/l/meetup-join/123',5:'Online via Teams'}[index] || 'Student centre') : 'Student centre', categories: [{ name: index % 2 ? 'Community' : 'UNBC' }], website: `https://${index % 2 ? 'tourismpg.com' : 'www.unbc.ca'}/events/${index}` }])),
     pages: 1, pagination: { hasMore: false },
   } }));
   await page.goto('/');
@@ -28,6 +28,10 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 360, height: 740 }
     await page.setViewportSize(viewport); await setup(page);
     await expect(page.getByRole('tablist', { name: 'Studio workspace' })).toBeVisible();
     await expect(tab(page, 'Events')).toHaveAttribute('aria-selected', 'true');
+    const weekControl = (await page.getByRole('button', { name: 'Choose week', exact: true }).boundingBox())!;
+    const rangeControl = (await page.getByRole('combobox', { name: 'Schedule range', exact: true }).boundingBox())!;
+    expect(weekControl.y).toBe(rangeControl.y); expect(weekControl.height).toBe(44);
+    expect((await page.locator('.workspace-toolbar').boundingBox())!.height).toBeLessThanOrEqual(60);
     await tab(page, 'Export').tap();
     await page.getByRole('button', { name: 'Choose events', exact: true }).tap();
     await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
@@ -65,7 +69,7 @@ test('mobile filters, scroll positions, and multi-event selections survive tab c
   await filters.tap(); await expect(filters).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel('Event source', { exact: true }).selectOption('tourismpg.com');
   await page.getByLabel('Event category', { exact: true }).selectOption('Community');
-  await expect(filters).toContainText('2');
+  await expect(filters).toContainText('3');
   await filters.tap(); await expect(filters).toHaveAttribute('aria-expanded', 'false');
   await expect(page.getByLabel('Event source', { exact: true })).toBeHidden();
   await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
@@ -114,7 +118,7 @@ test('mobile exports images, archives, and project backups without opening anoth
   await page.getByRole('button', { name: 'Project menu', exact: true }).tap();
   const backup = page.waitForEvent('download'); await page.getByRole('button', { name: 'Save project', exact: true }).tap();
   const backupPath = (await (await backup).path())!; const saved = JSON.parse(await fs.readFile(backupPath, 'utf8'));
-  expect(saved.selected).toHaveLength(5); expect(saved.template).toBe('list');
+  expect(saved.selected).toHaveLength(5); expect(saved.template).toBe('list'); expect(saved.hideTeams).toBe(true);
   await page.getByRole('button', { name: 'Project menu', exact: true }).tap();
   const chooser = page.waitForEvent('filechooser'); await page.getByRole('button', { name: 'Open project', exact: true }).tap();
   await (await chooser).setFiles({ name: 'saved-project.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(saved)) });
@@ -134,4 +138,53 @@ test('mobile tabs support keyboard navigation and expose one active panel', asyn
   await expect(page.getByRole('tablist')).toBeHidden();
   await expect(page.getByRole('region', { name: 'Choose events', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Design and export', exact: true })).toBeVisible();
+});
+
+test('one-row mobile dropdowns navigate weeks and all schedule ranges', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await setup(page);
+  const range = page.getByRole('combobox', { name: 'Schedule range', exact: true });
+  await range.selectOption('weekend'); await expect(page.getByRole('button', { name: 'Choose week', exact: true })).toContainText('Oct 24 – 25, 2026');
+  await range.selectOption('weekly');
+  await page.getByRole('button', { name: 'Choose week', exact: true }).tap();
+  const dialog = page.getByRole('dialog', { name: 'Choose week', exact: true });
+  await dialog.getByRole('button', { name: 'Next week', exact: true }).tap(); await expect(dialog.getByLabel('Week starting', { exact: true })).toHaveValue('2026-10-26');
+  await dialog.getByRole('button', { name: 'Previous week', exact: true }).tap(); await expect(dialog.getByLabel('Week starting', { exact: true })).toHaveValue('2026-10-19');
+  await dialog.getByLabel('Week starting', { exact: true }).fill('2026-12-31'); await expect(dialog.getByLabel('Week starting', { exact: true })).toHaveValue('2026-12-28');
+  await expect(dialog).toContainText('2027');
+  await dialog.getByRole('button', { name: 'This week', exact: true }).tap(); await expect(dialog.getByLabel('Week starting', { exact: true })).toHaveValue('2026-10-19');
+  await dialog.getByRole('button', { name: 'Done', exact: true }).tap();
+  await tab(page, 'Design').tap(); await page.getByRole('button', { name: 'Weekly list', exact: false }).tap();
+  await expect(range).toHaveValue('full-week');
+  for (const value of ['weekly', 'weekend', 'full-week']) { await range.selectOption(value); await expect(range).toHaveValue(value); }
+  await page.screenshot({ path: 'docs/mobile-toolbar.png' });
+});
+
+test('Teams hiding defaults on, persists, and excludes suggestions while keeping selected events', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await setup(page, true);
+  await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
+  await expect(page.locator('.event-card')).toHaveCount(2); await expect(page.locator('.teams-filter-status')).toContainText('4 Teams events hidden');
+  await page.getByRole('button', { name: /^Filters/ }).tap();
+  const hide = page.getByRole('checkbox', { name: 'Hide Microsoft Teams events', exact: true }); await expect(hide).toBeChecked();
+  await hide.uncheck(); await expect(page.locator('.event-card')).toHaveCount(5);
+  await page.getByRole('checkbox', { name: 'Select Campus gathering 19.1', exact: true }).check();
+  await hide.check(); await expect(page.locator('.event-card')).toHaveCount(2); await expect(page.locator('.selected-filter')).toContainText('1');
+  await expect(page.locator('.teams-filter-status')).toContainText('1 already selected and kept in your design');
+  await page.getByRole('button', { name: /^Filters/ }).tap();
+  await page.getByRole('button', { name: 'Add suggestions', exact: true }).tap(); await ready(page);
+  await expect(page.locator('.selected-filter')).toContainText('2');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').selected)).toEqual(['ote:0', 'ote:4']);
+  await tab(page, 'Design').tap(); await page.getByRole('button', { name: 'Weekly list', exact: false }).tap();
+  await tab(page, 'Preview').tap(); await ready(page);
+  const exportedIds = await page.locator('.schedule-image').evaluate(async (image: HTMLImageElement) => {
+    const svg = new DOMParser().parseFromString(await fetch(image.src).then(response => response.text()), 'image/svg+xml');
+    return Array.from(svg.querySelectorAll('[data-event-id]'), event => event.getAttribute('data-event-id'));
+  });
+  expect(exportedIds).toEqual(['ote:0', 'ote:4']);
+  await tab(page, 'Events').tap(); await page.getByRole('button', { name: 'Show Teams events', exact: true }).tap();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').hideTeams)).toBe(false);
+  await page.reload(); await page.getByRole('button', { name: /^Filters/ }).tap(); await expect(hide).not.toBeChecked();
+  await expect(page.locator('.selected-filter')).toContainText('2');
+  await hide.check(); await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').hideTeams)).toBe(true);
+  await page.screenshot({ path: 'docs/mobile-teams-filter.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 }); await expect(hide).toBeChecked(); await expect(hide).toBeVisible();
 });
