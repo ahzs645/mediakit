@@ -10,5 +10,6 @@ function isTeamsVenue(location: string): boolean {
   const venue = location.normalize('NFKC').trim();
   const namedVenue = /\b(?:microsoft[\s_-]*teams|ms\.?[\s_-]*teams)\b/i.test(venue);
   const shortVenue = /^(?:(?:online|virtual)\s*(?:[-:–—]|via)?\s*|(?:via|on)\s+)?teams(?:\s+(?:meeting|online))?(?:\s*\((?:online|virtual)\))?$/i.test(venue);
-  return namedVenue || shortVenue || isTeamsUrl(venue);
+  const onlineVenue = /^(?:online|virtual)\s*\(\s*teams(?:\s+meeting)?\s*\)$/i.test(venue);
+  return namedVenue || shortVenue || onlineVenue || isTeamsUrl(venue);
 }

@@ -13,7 +13,7 @@ async function setup(page: Page, teams = false) {
       const day = 19 + Math.floor(index / 5);
       return { id: String(index), title: `Campus gathering ${day}.${index % 5 + 1}`, description: 'Meet your campus community. Bring a friend.', startDate: `2026-10-${day}T17:00:00Z`, endDate: `2026-10-${day}T18:00:00Z`, category: 'unbc', status: 'scheduled' };
     }),
-    eventMetadata: Object.fromEntries(Array.from({ length: 35 }, (_, index) => [String(index), { location: teams ? ({0:'Microsoft Teams',1:'MS Teams',2:'https://teams.microsoft.com/l/meetup-join/123',5:'Online via Teams'}[index] || 'Student centre') : 'Student centre', categories: [{ name: index % 2 ? 'Community' : 'UNBC' }], website: `https://${index % 2 ? 'tourismpg.com' : 'www.unbc.ca'}/events/${index}` }])),
+    eventMetadata: Object.fromEntries(Array.from({ length: 35 }, (_, index) => [String(index), { location: teams ? ({0:'Microsoft Teams',1:'MS Teams',2:'https://teams.microsoft.com/l/meetup-join/123',5:'Online (Teams)'}[index] || 'Student centre') : 'Student centre', categories: [{ name: index % 2 ? 'Community' : 'UNBC' }], website: `https://${index % 2 ? 'tourismpg.com' : 'www.unbc.ca'}/events/${index}` }])),
     pages: 1, pagination: { hasMore: false },
   } }));
   await page.goto('/');
