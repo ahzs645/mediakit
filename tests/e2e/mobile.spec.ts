@@ -28,6 +28,16 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 360, height: 740 }
     await page.setViewportSize(viewport); await setup(page);
     await expect(page.getByRole('tablist', { name: 'Studio workspace' })).toBeVisible();
     await expect(tab(page, 'Events')).toHaveAttribute('aria-selected', 'true');
+    if (viewport.height > 500) {
+      const visibleCards = await page.locator('.event-card').evaluateAll(cards => {
+        const list = document.querySelector('.events-scroll')!.getBoundingClientRect();
+        const tabs = document.querySelector('.mobile-tabs')!.getBoundingClientRect();
+        return cards.filter(card => { const bounds = card.getBoundingClientRect(); return bounds.top >= list.top && bounds.bottom <= Math.min(list.bottom, tabs.top); }).length;
+      });
+      expect(visibleCards, 'Events visible before any scrolling').toBeGreaterThanOrEqual(viewport.height < 600 ? 2 : viewport.height < 800 ? 3 : 4);
+      const edit = (await page.getByRole('button', { name: 'Edit Campus gathering 19.1', exact: true }).boundingBox())!;
+      expect(edit.width).toBeGreaterThanOrEqual(44); expect(edit.height).toBeGreaterThanOrEqual(44);
+    }
     const weekControl = (await page.getByRole('button', { name: 'Choose week', exact: true }).boundingBox())!;
     const rangeControl = (await page.getByRole('combobox', { name: 'Schedule range', exact: true }).boundingBox())!;
     expect(weekControl.y).toBe(rangeControl.y); expect(weekControl.height).toBe(44);
@@ -163,7 +173,9 @@ test('Teams hiding defaults on, persists, and excludes suggestions while keeping
   await page.setViewportSize({ width: 390, height: 844 }); await setup(page, true);
   await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
   await expect(page.locator('.event-card')).toHaveCount(2); await expect(page.locator('.teams-filter-status')).toContainText('4 Teams events hidden');
+  await expect(page.locator('.teams-filter-status')).toBeHidden();
   await page.getByRole('button', { name: /^Filters/ }).tap();
+  await expect(page.locator('.teams-filter-status')).toBeVisible();
   const hide = page.getByRole('checkbox', { name: 'Hide Microsoft Teams events', exact: true }); await expect(hide).toBeChecked();
   await hide.uncheck(); await expect(page.locator('.event-card')).toHaveCount(5);
   await page.getByRole('checkbox', { name: 'Select Campus gathering 19.1', exact: true }).check();
@@ -180,7 +192,8 @@ test('Teams hiding defaults on, persists, and excludes suggestions while keeping
     return Array.from(svg.querySelectorAll('[data-event-id]'), event => event.getAttribute('data-event-id'));
   });
   expect(exportedIds).toEqual(['ote:0', 'ote:4']);
-  await tab(page, 'Events').tap(); await page.getByRole('button', { name: 'Show Teams events', exact: true }).tap();
+  await tab(page, 'Events').tap(); await page.getByRole('button', { name: /^Filters/ }).tap();
+  await page.getByRole('button', { name: 'Show Teams events', exact: true }).tap();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').hideTeams)).toBe(false);
   await page.reload(); await page.getByRole('button', { name: /^Filters/ }).tap(); await expect(hide).not.toBeChecked();
   await expect(page.locator('.selected-filter')).toContainText('2');
