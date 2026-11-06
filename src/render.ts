@@ -9,6 +9,8 @@ import italicUrl from '@fontsource/dm-sans/files/dm-sans-latin-400-italic.woff?u
 import displayUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-900-normal.woff?url';
 import { textPath, wrap, escape } from './vector-text';
 import { renderList } from './list-layout';
+import { renderDaily } from './daily-layout';
+import type { DailyDay } from './daily-layout';
 import condensedUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff?url';
 import JSZip from 'jszip';
 import { localDateFont } from './date-font';
@@ -55,10 +57,16 @@ export function selectedEvents(project: Project): CalendarEvent[] {
 export function dimensions(project: Pick<Project, 'format'>): { width: number; height: number } {
   return project.format === 'story' ? { width: 1080, height: 1920 } : project.format === 'original' ? { width: 964, height: 1302 } : { width: 1080, height: 1350 };
 }
+export async function renderDailyProject(project: Project): Promise<DailyDay[]> {
+  const events = selectedEvents(project);
+  if (!events.length) return [];
+  const { fonts } = await resources();
+  return renderDaily(project, fonts, events, visibleDays(project), localDateFont()?.font);
+}
 export async function renderProject(project: Project): Promise<RenderResult> {
   const { fonts, designs } = await resources();
-  if (project.template === 'list') return renderList(project,fonts,selectedEvents(project),visibleDays(project),dimensions(project));
-  const dateFont = localDateFont();
+  const lettering = localDateFont()?.font;
+  if (project.template === 'list') return renderList(project, fonts, selectedEvents(project), visibleDays(project), dimensions(project), lettering);
   const story = project.format === 'story';
   const weekly = project.layout === 'weekly';
   const multiplier = story ? 1080 / 482 : 1;
@@ -147,9 +155,9 @@ export async function renderProject(project: Project): Promise<RenderResult> {
     // October 2026 uses the exact supplied Salted outlines, including its contour.
     if (month === 'OCT' && year === '2026') content += paint(baseDesign.stamp);
     else {
-      const font = dateFont?.font || fonts.hand;
-      content += textPath(font, month, stampX, stampBaseline+(dateFont ? 10*stampScale : 0), (dateFont ? 45 : 33)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (dateFont ? 43.69 : 21.8453)*stampScale);
-      content += textPath(font, year, stampX-stampScale, stampBaseline+37*stampScale+(dateFont ? 10*stampScale : 0), (dateFont ? 43 : 34)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (dateFont ? 43.69 : 21.8453)*stampScale);
+      const font = lettering ?? fonts.hand;
+      content += textPath(font, month, stampX, stampBaseline+(lettering ? 10*stampScale : 0), (lettering ? 45 : 33)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (lettering ? 43.69 : 21.8453)*stampScale);
+      content += textPath(font, year, stampX-stampScale, stampBaseline+37*stampScale+(lettering ? 10*stampScale : 0), (lettering ? 43 : 34)*stampScale, palette.badgeInk, 78*stampScale, true, palette.accent, (lettering ? 43.69 : 21.8453)*stampScale);
     }
     content += '</g>';
     let eventCount = 0;
@@ -161,8 +169,9 @@ export async function renderProject(project: Project): Promise<RenderResult> {
       const badgeX = row.badge.x+row.badge.width/2;
       const badgeY = badgeTop+badgeH/2-3*multiplier;
       const badgeSize = (weekly ? 16 : 24)*multiplier;
-      content += textPath(fonts.condensed,dayLabel(row.day).toUpperCase(),badgeX,badgeY,badgeSize,palette.badgeInk,row.badge.width*.8,true);
-      content += textPath(fonts.condensed,String(Number(row.day.slice(8))),badgeX,badgeY+badgeSize*1.1,badgeSize,palette.badgeInk,row.badge.width*.7,true);
+      const badgeFont = lettering ?? fonts.condensed;
+      content += textPath(badgeFont,dayLabel(row.day).toUpperCase(),badgeX,badgeY,badgeSize,palette.badgeInk,row.badge.width*.8,true);
+      content += textPath(badgeFont,String(Number(row.day.slice(8))),badgeX,badgeY+badgeSize*1.1,badgeSize,palette.badgeInk,row.badge.width*.7,true);
       let baseline = row.y + 19 * multiplier;
       const chunk = row.chunks[page] || [];
       const clipId = `clip-content-${index}`;
@@ -197,19 +206,61 @@ export async function rasterize(page: RenderedPage, type: 'png' | 'jpeg' = 'png'
 export function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
-export function caption(project: Project): string {
-  const days = visibleDays(project), events = selectedEvents(project);
-  return `${project.layout === 'weekend' ? 'This weekend' : 'This week'} at a glance 🌲\n\n${days.map(day => {
-    const items = events.filter(e => eventOnDay(e, day, project.timezone));
-    return items.length ? `${dayLabel(day, 'long')}, ${day}\n${items.map(e => { const edit = project.edits[e.id] || {}; return `• ${(edit.showTitle ?? project.showTitle) ? edit.title ?? e.title : 'Event'}\n  ${(edit.showTime ?? project.showTime) ? edit.timeLabel ?? formatTime(e, day, project.timezone) : ''}${(edit.showLocation ?? project.showLocation) && (edit.location ?? e.location) ? ` · ${edit.location ?? e.location}` : ''}${e.url ? `\n  ${e.url}` : ''}`; }).join('\n')}` : '';
+export function caption(project: Project, daily?: DailyDay): string {
+  const days = daily ? [daily.day] : visibleDays(project), events = daily?.events ?? selectedEvents(project);
+  const intro = daily ? 'What’s happening in Prince George today?' : `${project.layout === 'weekend' ? 'This weekend' : 'This week'} at a glance 🌲`;
+  const showTime = daily ? project.dailyShowTime : project.showTime;
+  return `${intro}\n\n${days.map(day => {
+    const items = daily ? events : events.filter(e => eventOnDay(e, day, project.timezone));
+    return items.length ? `${dayLabel(day, 'long')}, ${day}\n${items.map(e => {
+      const edit = project.edits[e.id] || {};
+      const title = (edit.showTitle ?? project.showTitle) ? edit.title ?? e.title : 'Event';
+      const time = (edit.showTime ?? showTime) ? edit.timeLabel ?? formatTime(e, day, project.timezone) : '';
+      const location = (edit.showLocation ?? project.showLocation) ? edit.location ?? e.location : '';
+      const details = [time, location].filter(Boolean).join(' · ');
+      return `• ${title}${details ? `\n  ${details}` : ''}${e.url ? `\n  ${e.url}` : ''}`;
+    }).join('\n')}` : '';
   }).filter(Boolean).join('\n\n')}\n\nTimes: ${project.timezone}. Check event links for the latest details.\n#OverTheEdge #UNBC #PrinceGeorge`;
 }
-export async function exportPages(project: Project, result: RenderResult, type: 'png' | 'jpeg' | 'svg', all: boolean, currentPage: number): Promise<void> {
+export type ExportType = 'png' | 'jpeg' | 'svg';
+const imageExtension = (type: ExportType) => type === 'jpeg' ? 'jpg' : type;
+const imageBlob = (page: RenderedPage, type: ExportType) => type === 'svg'
+  ? new Blob([page.svg], { type: 'image/svg+xml' }) : rasterize(page, type);
+const pageNumber = (page: RenderedPage) => String(page.number).padStart(2, '0');
+const weeklyBase = (project: Project) => `ote-${project.template}-${project.layout}-${project.week}-${project.palette}`;
+const dailyFilename = (page: RenderedPage, type: ExportType) =>
+  `${pageNumber(page)}-${page.eventCount ? 'event' : 'cover'}.${imageExtension(type)}`;
+
+export async function exportDailySlide(day: DailyDay, page: RenderedPage, type: ExportType): Promise<void> {
+  if (day.warnings.length) throw new Error('Resolve the daily layout warnings before exporting.');
+  download(await imageBlob(page, type), `ote-daily-${day.day}-${dailyFilename(page, type)}`);
+}
+
+export async function exportPackage(project: Project, weekly: RenderResult, daily: DailyDay[], type: ExportType): Promise<void> {
+  if (weekly.warnings.length || daily.some(day => day.warnings.length)) throw new Error('Resolve the layout warnings before exporting the package.');
+  if (!weekly.count || !daily.length) throw new Error('Select an event before exporting.');
+  const zip = new JSZip();
+  // Encode one slide at a time to avoid holding many full-resolution canvases on a phone.
+  for (const page of weekly.pages) {
+    zip.file(`weekly/${weeklyBase(project)}-${pageNumber(page)}.${imageExtension(type)}`, await imageBlob(page, type));
+  }
+  zip.file('weekly/caption.txt', caption(project));
+  for (const day of daily) {
+    const folder = `daily/${day.day}`;
+    for (const page of day.pages) {
+      zip.file(`${folder}/${dailyFilename(page, type)}`, await imageBlob(page, type));
+    }
+    zip.file(`${folder}/caption.txt`, caption(project, day));
+  }
+  download(await zip.generateAsync({ type: 'blob' }), `ote-media-package-${project.week}.zip`);
+}
+
+export async function exportPages(project: Project, result: RenderResult, type: ExportType, all: boolean, currentPage: number): Promise<void> {
   if (result.warnings.length) throw new Error('Resolve the layout warnings before exporting.');
   if (!result.count) throw new Error('Select an event before exporting.');
   const pages = all ? result.pages : [result.pages[currentPage]];
-  const base = `ote-${project.template}-${project.layout}-${project.week}-${project.palette}`;
-  const blobs = await Promise.all(pages.map(async p => ({ name: `${base}-${String(p.number).padStart(2,'0')}.${type === 'jpeg' ? 'jpg' : type}`, blob: type === 'svg' ? new Blob([p.svg], { type: 'image/svg+xml' }) : await rasterize(p,type) })));
+  const base = weeklyBase(project);
+  const blobs = await Promise.all(pages.map(async p => ({ name: `${base}-${pageNumber(p)}.${imageExtension(type)}`, blob: await imageBlob(p, type) })));
   if (all) {
     const zip = new JSZip(); for (const {name,blob} of blobs) zip.file(name,blob);
     zip.file('caption.txt',caption(project));

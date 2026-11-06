@@ -43,7 +43,7 @@ Open the URL printed by Vite (normally http://127.0.0.1:4173/). The browser cach
 3. Date chips only browse events for a day; they never hide a date or remove selections. Each day has a separate **In design** checkbox for omitting that date. **Selected only** explicitly filters the event list, with a **Show all events** action to return to browsing.
 4. Select as many event cards as needed, including multiple events per date. **Select all** adds every matching event for a date. **Suggest** adds the next unselected event; **Add suggestions** adds one new event per visible, included date. Suggestions respect source, label, and search filters and preserve all earlier selections, including selections from other views. The pencil opens a compact editor with independent Title, Time, Location, and Description visibility controls. Edits never modify the source website. Simplify uses a deterministic first-sentence summary locally.
 5. Choose **Original cards** or **Weekly list**, then Post, Story, or Original, a palette, and field visibility. Weekly list starts with all seven days in Story format and times off; use Weekdays, Weekend, or Full week and enable times if wanted. **Spacing & date badges** moves the heading and month badge independently and adjusts day badge height. **Skip empty dates** omits days without selected events; remaining date boxes expand automatically.
-6. Review the live preview and **Layout capacity**. The slide counter shows which image you are viewing. If the original cards have room for one event per date, extra selections go onto additional slides; the visible notice shows total selections, slide count, and how many events appear on the current slide. Export a PNG, JPG, or self-contained SVG. Download all slides includes a ZIP and caption with source links.
+6. Review the live preview and **Layout capacity**. Switch between **Weekly schedule** and **Daily Stories** to see both outputs. Extra events in the weekly schedule flow onto additional slides. Export PNG, JPG, or self-contained SVG. **Download weekly + daily package** puts both outputs and their captions with source links in a ZIP.
 7. Work saves locally. Download a project JSON backup to keep a portable copy or continue on another device.
 
 On mobile, four persistent bottom tabs keep the workflow within reach: **Events → Design → Preview → Export**. A single toolbar row contains the week picker and a **Weekdays / Weekend / Full week** dropdown (Full week is available in Weekly list). The week picker opens previous/next, This week, and a date input; any chosen date resolves to its Monday. Source, label, and Teams filters expand from **Filters**, with an active-filter count; the Teams explanation stays inside that drawer. Date chips and the selected-events toggle share one row. The events heading and connection status share a compact header, and each date uses one toolbar for inclusion, bulk selection, and suggestions. Cards put the title first, time and category on one line, and the venue on one line; long titles wrap, and the pencil opens the full venue and details. Selection and edit targets stay large enough for touch. Date chips scroll horizontally when seven days need more room. Each panel keeps its scroll position and selections when switching tabs. The preview fits its actual export ratio, and the Export tab downloads images or ZIPs directly. **⋯** opens project backup, restore, and help.
@@ -78,6 +78,14 @@ Rows share a measured height budget based on their content. Short events can fit
 
 [Weekly list workspace](docs/weekly-list-studio.png) · [Example export](docs/weekly-list-example.png)
 
+## Daily Stories
+
+Each included date with selected events gets a dated cover and one slide per event in local start-time order. Daily Stories use the illustrated border, paper notes, and repeating Over the Edge wordmark from the daily design reference. They are always 1080×1920, regardless of the weekly schedule’s format.
+
+Choose a date in the **Daily Stories** preview and use the arrows to see its cover and event slides. Daily times and descriptions are on by default and can be adjusted separately in **Design → Daily Story details**. Event edits carry across both outputs. If an event’s details don’t fit, shorten the text, hide a field, or reduce the text size.
+
+The package ZIP has a `weekly/` folder and one `daily/YYYY-MM-DD/` folder per date, each with images and a caption. **Download weekly slides + caption** and **Download current slide** are also available.
+
 ## Design fidelity and overlay analysis
 
 Original files, including the new `Section 1.svg` montage, are preserved in `design-reference/`. `scripts/prepare-designs.py` separates headings, month stamps, frame geometry, badge silhouettes, and embedded paper photographs into semantic SVG layers. The weekend Story is extracted directly from the new montage.
@@ -86,7 +94,7 @@ The repeating background uses one complete original eleven-letter logo on the or
 
 The default heading and last frame use a consistent 4% top/bottom canvas margin. Heading and month positions can move independently from −2% to +1% of canvas height. Settings are saved in project backups, with backward-compatible defaults for older projects.
 
-October 2026 uses the exact supplied Salted vector outlines in every layout. Other months and years remain automatic, using Kalam by default. **Use a local font** loads an OTF, TTF, or WOFF (up to 1 MB), such as Salted, for dynamic months. Local fonts stay in this browser, work offline, and are excluded from project backups and deployments. The separately downloaded Salted file is marked personal use only and is not redistributed in this repository. Day numbers use bundled Barlow Condensed.
+**Design → Display font → Use a local font** loads an OTF, TTF, or WOFF (up to 1 MB) for weekly and daily headings and dates. For Salted, select your own font file. Event details keep their built-in typefaces, and the Original cards template keeps its supplied heading and October 2026 stamp artwork. Local fonts stay in the browser, work offline, and are excluded from project backups and deployments.
 
 The reproducible aligned overlay report is in **[docs/visual-comparison/index.html](docs/visual-comparison/index.html)**, including four original references, output, an overlay opacity control, difference images, and numeric results. Differences include intentional margin, badge height, texture, and date changes; no pixel regions are excluded. [All six export variants](docs/layout-variants.png) show actual output proportions side by side.
 
@@ -139,6 +147,7 @@ The production offline check reloads with the network disabled and verifies a re
 - `src/dates.ts`: date ranges, local dates, time labels, DST, and multi-day overlap.
 - `src/render.ts`: original card layout, repeating watermark, textured badges, capacity, reflow, image/ZIP exports, and captions.
 - `src/list-layout.ts`: seven-day list style, inline bold/italic wrapping, measured row allocation, and pagination.
+- `src/daily-layout.ts`: Story covers and individual event cards grouped by date.
 - `src/vector-text.ts`: shared vector lettering and wrapping helpers.
 - `src/date-font.ts`: private browser-local month font import and persistence.
 - `src/storage.ts`: versioned local project persistence and backup validation.

@@ -3,7 +3,7 @@ import type { CalendarEvent, Project } from './types';
 import type { RenderResult, DayCapacity, RenderedPage } from './render';
 import { PALETTES } from './types';
 import { dayLabel, daysFor, eventOnDay, formatTime, rangeLabel } from './dates';
-import { escape, FONT_OPTIONS, textPath, wrap } from './vector-text';
+import { escape, fontForText, FONT_OPTIONS, textPath, wrap } from './vector-text';
 
 type Fonts = Record<'sans'|'bold'|'italic'|'display',opentype.Font>;
 type Run = {text:string;font:'bold'|'italic'};
@@ -27,7 +27,7 @@ function inlineLines(fonts:Fonts,runs:Run[],size:number,width:number):Run[][] {
   finish();return lines;
 }
 
-export function renderList(project:Project,fonts:Fonts,events:CalendarEvent[],days:string[],dims:{width:number;height:number}):RenderResult {
+export function renderList(project:Project,fonts:Fonts,events:CalendarEvent[],days:string[],dims:{width:number;height:number},lettering?:opentype.Font):RenderResult {
   const {width:w,height:h}=dims,scale=w/1080;
   const palette=project.palette==='custom'?project.customPalette:PALETTES[project.palette];
   const ink=project.palette==='custom'?palette.ink:palette.accent;
@@ -37,8 +37,10 @@ export function renderList(project:Project,fonts:Fonts,events:CalendarEvent[],da
   if(cancelled.length)warnings.push(`${cancelled.length} selected event(s) are cancelled or postponed. Remove them before exporting.`);
   const title=project.layout==='weekend'?'WEEKEND SCHEDULE':project.layout==='weekly'?'WEEKDAY SCHEDULE':'WEEKLY SCHEDULE';
   const margin=w*.06,dateWidth=w*.18,contentX=w*.28,contentWidth=w*.66;
-  const titleSize=w*.15;
-  const titleBox=fonts.display.getPath(title,0,0,titleSize,FONT_OPTIONS).getBoundingBox();
+  const titleFont=fontForText(lettering,fonts.display,title);
+  const titleWidth=w-margin*2;
+  const titleSize=titleFont===fonts.display ? w*.15 : Math.min(w*.15,titleWidth/titleFont.getAdvanceWidth(title,1,FONT_OPTIONS));
+  const titleBox=titleFont.getPath(title,0,0,titleSize,FONT_OPTIONS).getBoundingBox();
   const titleY=h*.055-titleBox.y1;
   const bodyTop=Math.max(h*.155,titleY+titleBox.y2+48*scale),bodyBottom=h*.945;
   const dateLabelSize=25*scale,dateNumberSize=76*scale;
@@ -89,21 +91,22 @@ export function renderList(project:Project,fonts:Fonts,events:CalendarEvent[],da
   if(total>10)warnings.push('This selection needs more than 10 slides. Choose fewer events for a readable set.');
   const capacity:DayCapacity[]=placed.map(row=>({day:row.day,events:row.entries.length,slides:row.chunks.length,used:row.chunks[0].reduce((sum,e)=>sum+e.height,0),available:row.available,typicalLimit:Math.max(1,Math.floor(row.available/(lineHeight+5*scale)))}));
   const range=rangeLabel(days.length?days:daysFor(project.week,project.layout));
+  const rangeFont=fontForText(lettering,fonts.sans,range);
   const backgroundLogo=textPath(fonts.display,'OVER THE EDGE',0,0,w*.14,palette.accent);
   let background=`<rect width="${w}" height="${h}" fill="${palette.paper}"/><defs><g id="list-watermark">${backgroundLogo}</g></defs><g data-layer="watermark" opacity="0.065" transform="rotate(-5 ${w/2} ${h/2})">`;
   for(let row=-1;row<=Math.ceil(h/(w*.25))+1;row++)for(let col=-1;col<=1;col++)background+=`<use href="#list-watermark" transform="translate(${col*w*.95+(row%2)*w*.4} ${row*w*.25})"/>`;
   background+='</g>';
   const subtitleSize=20*scale;
-  const subtitleX=w-margin-fonts.sans.getAdvanceWidth(range,subtitleSize,FONT_OPTIONS);
-  const header=`<g data-layer="heading">${textPath(fonts.display,title,margin,titleY,titleSize,palette.accent,w-margin*2)}</g><g data-layer="date-range" aria-label="${escape(range)}">${textPath(fonts.sans,range,subtitleX,bodyTop-17*scale,subtitleSize,ink,w-margin*2)}</g>`;
+  const subtitleX=w-margin-Math.min(titleWidth,rangeFont.getAdvanceWidth(range,subtitleSize,FONT_OPTIONS));
+  const header=`<g data-layer="heading">${textPath(titleFont,title,margin,titleY,titleSize,palette.accent,titleWidth)}</g><g data-layer="date-range" aria-label="${escape(range)}">${textPath(rangeFont,range,subtitleX,bodyTop-17*scale,subtitleSize,ink,titleWidth)}</g>`;
   const pages:RenderedPage[]=Array.from({length:total},(_,page)=>{
     let content='',eventCount=0;
     placed.forEach((row,i)=>{
       const stroke=2.5*scale,rx=6*scale;
       content+=`<rect data-date="${row.day}" x="${margin}" y="${row.y}" width="${dateWidth}" height="${row.height}" rx="${rx}" fill="${palette.paper}" fill-opacity="0.55" stroke="${palette.accent}" stroke-width="${stroke}"/><rect data-day="${row.day}" x="${contentX}" y="${row.y}" width="${contentWidth}" height="${row.height}" rx="${rx}" fill="${palette.paper}" fill-opacity="0.55" stroke="${palette.accent}" stroke-width="${stroke}"/>`;
       const middle=row.y+row.height/2;
-      content+=textPath(fonts.bold,dayLabel(row.day,'long').toUpperCase(),margin+dateWidth/2,middle-20*scale,dateLabelSize,ink,dateWidth-12*scale,true);
-      content+=textPath(fonts.sans,String(Number(row.day.slice(8))),margin+dateWidth/2,middle+54*scale,dateNumberSize,ink,dateWidth-12*scale,true);
+      content+=textPath(lettering??fonts.bold,dayLabel(row.day,'long').toUpperCase(),margin+dateWidth/2,middle-20*scale,dateLabelSize,ink,dateWidth-12*scale,true);
+      content+=textPath(lettering??fonts.sans,String(Number(row.day.slice(8))),margin+dateWidth/2,middle+54*scale,dateNumberSize,ink,dateWidth-12*scale,true);
       content+=`<defs><clipPath id="list-content-${i}"><rect x="${contentX+padding}" y="${row.y+padding/2}" width="${contentWidth-padding*2}" height="${row.height-padding}"/></clipPath></defs><g clip-path="url(#list-content-${i})">`;
       let baseline=row.y+padding+size*.75;
       for(const entry of row.chunks[page]||[]){

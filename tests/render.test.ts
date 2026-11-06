@@ -1,7 +1,7 @@
 import { describe,it,expect,vi,beforeAll,afterAll } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { basename,join } from 'node:path';
-import { renderProject, visibleDays } from '../src/render';
+import { caption, renderDailyProject, renderProject, visibleDays } from '../src/render';
 import { newProject } from '../src/storage';
 import type { CalendarEvent } from '../src/types';
 const realFetch=globalThis.fetch;
@@ -49,4 +49,39 @@ describe('production SVG layout engine',()=>{
   for(const format of ['portrait','story','original'] as const){const p={...newProject(),week:'2026-10-19',template:'list' as const,layout:'full-week' as const,format,showTime:false};p.events=Array.from({length:40},(_,i)=>({...event(String(i),19+i%7),title:'Campus event',location:'UNBC'}));p.selected=p.events.map(e=>e.id);p.skippedDays=['2026-10-21'];const r=await renderProject(p);expect(r.warnings).toEqual([]);expect(r.count).toBe(p.events.filter(e=>!e.start.startsWith('2026-10-21')).length);expect(r.pages.reduce((n,page)=>n+page.eventCount,0)).toBe(r.count);expect(r.capacity).toHaveLength(6);expect(r.hiddenDays).toBe(1);for(const day of r.capacity)expect(day.used).toBeLessThanOrEqual(day.available);}
  });
  it('blocks oversized and invisible list entries before export',async()=>{const p={...newProject(),week:'2026-10-19',template:'list' as const,layout:'full-week' as const,format:'story' as const};p.events=[{...event('long'),title:'Long detailed title '.repeat(100)}];p.selected=['long'];let r=await renderProject(p);expect(r.warnings.join()).toContain('too long');p.edits.long={showTitle:false,showTime:false,showLocation:false,showDescription:false};r=await renderProject(p);expect(r.warnings.join()).toContain('every field hidden');});
+});
+
+describe('daily Story layout', () => {
+  it('groups selected events by local date and omits skipped, empty, and out-of-range dates', async () => {
+    const project = { ...newProject(), week: '2026-10-19' };
+    project.events = [
+      { ...event('overnight'), start: '2026-10-20T04:00:00Z', end: '2026-10-22T07:00:00Z' },
+      event('unselected', 22),
+      event('weekend', 24),
+    ];
+    project.selected = ['overnight', 'weekend'];
+    project.skippedDays = ['2026-10-20'];
+    const daily = await renderDailyProject(project);
+    expect(daily.map(day => day.day)).toEqual(['2026-10-19', '2026-10-21']);
+    for (const day of daily) {
+      expect(day.pages.map(page => page.eventCount)).toEqual([0, 1]);
+      expect(day.pages[1].svg).toContain('data-event-id="overnight"');
+      expect(day.pages[1]).toMatchObject({ width: 1080, height: 1920 });
+      expect(day.warnings).toEqual([]);
+    }
+    expect(caption(project, daily[1])).toContain('Until 12am');
+  });
+
+  it('flags oversized daily details and respects event visibility overrides', async () => {
+    const project = { ...newProject(), week: '2026-10-19', showTime: false };
+    project.events = [{ ...event('a'), description: 'Long event description. '.repeat(150) }];
+    project.selected = ['a'];
+    let [day] = await renderDailyProject(project);
+    expect(day.warnings.join()).toContain('needs shorter details');
+    expect(caption(project, day)).toContain('12pm');
+    project.edits.a = { showDescription: false, showTime: false };
+    [day] = await renderDailyProject(project);
+    expect(day.warnings).toEqual([]);
+    expect(caption(project, day)).not.toContain('12pm');
+  });
 });

@@ -43,7 +43,57 @@ test('exports full-resolution PNG, JPEG, portable SVG, and a ZIP with caption',a
     const image=sharp(buffer);const meta=await image.metadata();expect(meta.width).toBe(1080);expect(meta.height).toBe(1350);
     const pixels=await image.removeAlpha().raw().toBuffer();for(const [i,value]of [227,239,207].entries())expect(Math.abs(pixels[i]-value)).toBeLessThan(15); // Edge watermark tints the paper; JPEG also introduces rounding.
   }
-  await page.getByLabel('File format').selectOption('png');const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download all slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));expect(Object.keys(zip.files)).toHaveLength(2);const text=await zip.file('caption.txt')!.async('string');expect(text).toContain('2026-10-19');expect(text).toContain('https://overtheedge.unbc.ca/event/19-0/');expect(text).toContain('America/Vancouver');
+  await page.getByLabel('File format').selectOption('png');const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download weekly slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));expect(Object.keys(zip.files)).toHaveLength(2);const text=await zip.file('caption.txt')!.async('string');expect(text).toContain('2026-10-19');expect(text).toContain('https://overtheedge.unbc.ca/event/19-0/');expect(text).toContain('America/Vancouver');
+});
+
+test('previews both outputs and downloads dated Story sets alongside the weekly schedule', async ({ page }, testInfo) => {
+  await setup(page);
+  await page.getByRole('checkbox', { name: 'Select Campus event 19.1', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select Campus event 19.2', exact: true }).check();
+  await page.getByRole('checkbox', { name: 'Select Campus event 21.1', exact: true }).check();
+  await page.getByRole('button', { name: 'Edit Campus event 19.1', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Event title', exact: true }).fill('Community Repair Café');
+  await page.getByRole('textbox', { name: 'Description', exact: true }).fill('Bring a small item that needs fixing and learn to repair it with local volunteers. Tools and materials are provided.');
+  await page.getByRole('button', { name: 'Save edits', exact: true }).click();
+  await ready(page);
+  await expect(page.locator('.preview-meta')).toContainText('1080 × 1350');
+
+  await page.getByRole('button', { name: 'Daily Stories', exact: true }).click();
+  await expect(page.locator('.preview-meta')).toContainText('1080 × 1920');
+  await expect(page.locator('.slide-position')).toContainText('Cover · Slide 1 / 3');
+  await page.getByRole('button', { name: 'Next slide', exact: true }).click();
+  await expect(page.locator('.slide-position')).toContainText('Event · Slide 2 / 3');
+  await expect.poll(() => page.locator('.schedule-image').evaluate((img: HTMLImageElement) => fetch(img.src).then(r => r.text()))).toContain('Community Repair Café');
+  const dates = page.getByLabel('Daily Story date');
+  await expect(dates.locator('option')).toHaveCount(2);
+  await dates.selectOption('2026-10-21');
+  await expect(page.locator('.slide-position')).toContainText('Cover · Slide 1 / 2');
+  await page.getByRole('button', { name: 'Export your design', exact: true }).click();
+  await expect(page.getByRole('dialog')).toContainText('5 daily Story slides across 2 dates');
+  const next = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download weekly + daily package', exact: true }).click();
+  const archive = await next;
+  expect(archive.suggestedFilename()).toBe('ote-media-package-2026-10-19.zip');
+  const zip = await JSZip.loadAsync(await fs.readFile((await archive.path())!));
+  const weeklyName = Object.keys(zip.files).find(name => name.startsWith('weekly/') && name.endsWith('.png'))!;
+  const weekly = await zip.file(weeklyName)!.async('nodebuffer');
+  const cover = await zip.file('daily/2026-10-19/01-cover.png')!.async('nodebuffer');
+  const event = await zip.file('daily/2026-10-19/02-event.png')!.async('nodebuffer');
+  expect(await sharp(weekly).metadata()).toMatchObject({ width: 1080, height: 1350 });
+  expect(await sharp(cover).metadata()).toMatchObject({ width: 1080, height: 1920 });
+  expect(await sharp(event).metadata()).toMatchObject({ width: 1080, height: 1920 });
+  expect(zip.file('daily/2026-10-19/03-event.png')).toBeTruthy();
+  expect(zip.file('daily/2026-10-21/02-event.png')).toBeTruthy();
+  expect(zip.file('daily/2026-10-20/01-cover.png')).toBeNull();
+  const weeklyCaption = await zip.file('weekly/caption.txt')!.async('string');
+  const mondayCaption = await zip.file('daily/2026-10-19/caption.txt')!.async('string');
+  expect(weeklyCaption).toContain('Campus event 21.1');
+  expect(mondayCaption).toContain('Community Repair Café');
+  expect(mondayCaption).toContain('/event/19-0/');
+  expect(mondayCaption).not.toContain('Campus event 21.1');
+  await fs.writeFile(testInfo.outputPath('weekly.png'), weekly);
+  await fs.writeFile(testInfo.outputPath('daily-cover.png'), cover);
+  await fs.writeFile(testInfo.outputPath('daily-event.png'), event);
 });
 
 test('busy days automatically paginate without dropping events',async({page})=>{
@@ -74,7 +124,7 @@ test('month/year changes, connection failure, and offline saved edits',async({pa
 
 test('mobile layout has no horizontal overflow and supports the complete flow',async({page})=>{
   await page.setViewportSize({width:390,height:844});await setup(page);await pick(page);await page.getByRole('tab',{name:'Preview',exact:true}).click();await expect(page.locator('.schedule-image')).toBeVisible();await expect(page.getByRole('button',{name:'Choose events'})).toHaveCount(0);
-  await page.screenshot({path:'docs/media-studio-mobile.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.getByRole('tab',{name:'Design',exact:true}).click();await page.getByRole('button',{name:'Story 9:16'}).click();await page.getByRole('tab',{name:'Export',exact:true}).click();await expect(page.getByRole('button',{name:'Download all slides + caption'})).toBeEnabled();await page.screenshot({path:'test-results/mobile.png',fullPage:true});
+  await page.screenshot({path:'docs/media-studio-mobile.png',fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);await page.getByRole('tab',{name:'Design',exact:true}).click();await page.getByRole('button',{name:'Story 9:16'}).click();await page.getByRole('tab',{name:'Export',exact:true}).click();await expect(page.getByRole('button',{name:'Download weekly slides + caption'})).toBeEnabled();await page.screenshot({path:'test-results/mobile.png',fullPage:true});
 });
 
 test('live UNBC API loads every page through actual browser CORS and exports',async({page})=>{
@@ -148,7 +198,7 @@ test('spacing controls save and local fonts stay out of project backups',async({
   await page.getByRole('slider',{name:'Day badge height',exact:true}).press('End');await ready(page);
   await expect(page.locator('.layout-controls')).toContainText('150%');
   // A locally bundled OFL font tests the upload path without redistributing Salted.
-  await page.getByLabel('Local month font',{exact:true}).setInputFiles('node_modules/@fontsource/kalam/files/kalam-latin-700-normal.woff');
+  await page.getByLabel('Local display font',{exact:true}).setInputFiles('node_modules/@fontsource/kalam/files/kalam-latin-700-normal.woff');
   await expect(page.locator('.local-font-control')).toContainText('Kalam');
   await page.getByLabel('Week starting').fill('2026-11-02');await ready(page);
   await page.waitForTimeout(400);await page.reload();await expect(page.locator('.local-font-control')).toContainText('Kalam');
@@ -190,7 +240,7 @@ test('weekly list selects multiple events per day, exports seven days, and resto
   await expect(page.getByRole('button',{name:'Full week',exact:true})).toBeVisible();await expect(page.locator('.date-picker')).toContainText('Oct 19 – 25');await expect(page.locator('.capacity-row')).toHaveCount(7);
   await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');await page.getByRole('button',{name:'Add suggestions',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('14');await ready(page);
   const svg=await page.locator('.schedule-image').evaluate(async(img:HTMLImageElement)=>fetch(img.src).then(r=>r.text()));expect(svg.match(/data-event-id=/g)).toHaveLength(14);expect(svg).toContain('data-day="2026-10-25"');expect(svg).not.toContain('<text');await expect(page.locator('.preview-meta')).toContainText('1 slide');
-  await page.getByRole('button',{name:'Export your design',exact:true}).click();const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download all slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));const png=Object.keys(zip.files).find(name=>name.endsWith('.png'))!;const pngBytes=await zip.file(png)!.async('nodebuffer');expect(await sharp(pngBytes).metadata()).toMatchObject({width:1080,height:1920});await fs.writeFile('docs/weekly-list-example.png',pngBytes);expect(await zip.file('caption.txt')!.async('string')).toContain('2026-10-25');
+  await page.getByRole('button',{name:'Export your design',exact:true}).click();const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download weekly slides + caption'}).click();const dl=await next;const zip=await JSZip.loadAsync(await fs.readFile((await dl.path())!));const png=Object.keys(zip.files).find(name=>name.endsWith('.png'))!;const pngBytes=await zip.file(png)!.async('nodebuffer');expect(await sharp(pngBytes).metadata()).toMatchObject({width:1080,height:1920});await fs.writeFile('docs/weekly-list-example.png',pngBytes);expect(await zip.file('caption.txt')!.async('string')).toContain('2026-10-25');
   await page.getByRole('button',{name:'Close dialog',exact:true}).click();await page.waitForTimeout(400);await page.reload();await ready(page);await expect(page.locator('.selected-filter')).toContainText('14');await expect(page.getByRole('button',{name:'Full week',exact:true})).toBeVisible();
   await page.screenshot({path:'docs/weekly-list-studio.png',fullPage:true});
   await page.getByRole('button',{name:'Weekdays',exact:true}).click();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(5);await page.getByRole('button',{name:'Weekend',exact:true}).click();await ready(page);await expect(page.locator('.capacity-row')).toHaveCount(2);

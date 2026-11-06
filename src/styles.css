@@ -53,3 +53,10 @@
 .template-switch>button.active{background:#edf4e4;border-color:#afc990;color:#315f26}
 .template-switch strong{font-size:10px;font-weight:500;display:block}
 .template-switch small{font-size:8px;display:block;color:#94a285;margin-top:5px;line-height:1.5}
+
+.preview-output-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 9px;flex-shrink:0}
+.preview-output-switch{display:flex;align-items:center;gap:3px;padding:3px;border:1px solid #dce5d4;border-radius:8px;background:#f4f7ef}
+.preview-output-switch>button,.daily-date-select{min-height:30px;padding:0 10px;border:1px solid transparent;border-radius:5px;color:#49613e;font:inherit;font-size:11px;font-weight:600;white-space:nowrap}
+.preview-output-switch>button[aria-pressed=true]{border-color:#bfceb2;background:#fff;color:#25471e}
+.daily-date-select{max-width:100%;border-color:#dce5d4;border-radius:8px;background:#fff}
+.package-issue{border-radius:7px;background:#fff7e9;color:#73562d;padding:9px 11px;font-size:11px;line-height:1.5}

@@ -16,6 +16,7 @@ export interface Project {
   selected: string[]; edits: Record<string, EventEdit>; fetchedAt: string | null; fetchedRange: string;
   showLocation: boolean; showDescription: boolean; textScale: number; timezone: string;
   skippedDays: string[]; hideEmptyDays: boolean; showTime: boolean; showTitle: boolean;
+  dailyShowTime: boolean; dailyShowDescription: boolean;
   headingOffset: number; stampOffset: number; badgeHeight: number;
   hideTeams: boolean;
 }

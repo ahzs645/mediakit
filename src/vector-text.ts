@@ -1,6 +1,9 @@
 import * as opentype from 'opentype.js';
 export const FONT_OPTIONS = { features: { liga: false, rlig: false } };
 export const escape = (text: string) => text.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' }[c]!));
+export function fontForText(preferred: opentype.Font | undefined, fallback: opentype.Font, text: string): opentype.Font {
+  return preferred && [...text.replace(/\s+/g, ' ')].every(char => preferred.hasChar(char)) ? preferred : fallback;
+}
 export function textPath(font: opentype.Font, text: string, x: number, y: number, size: number, fill: string, maxWidth = Infinity, center = false, stroke?: string, strokeWidth = 16): string {
   const width = font.getAdvanceWidth(text, size, FONT_OPTIONS); const scale = Math.min(1, maxWidth / Math.max(1, width));
   const path = font.getPath(text, center ? -width / 2 : 0, 0, size, FONT_OPTIONS).toPathData(2);

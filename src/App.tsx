@@ -6,13 +6,14 @@ import { PALETTES } from './types';
 import { addDays, dateKey, daysFor, dayLabel, eventOnDay, formatTime, localToIso, monday, rangeLabel, readableDay } from './dates';
 import { cleanText, fetchEvents, safeUrl, simplifyText } from './api';
 import { loadProject, parseProject, STORAGE_KEY } from './storage';
-import { caption, dimensions, download, exportPages, renderProject, selectedEvents, svgUrl } from './render';
-import type { RenderResult } from './render';
+import { caption, dimensions, download, exportDailySlide, exportPackage, exportPages, renderDailyProject, renderProject, selectedEvents, svgUrl } from './render';
+import type { ExportType, RenderResult } from './render';
+import { DAILY_SIZE } from './daily-layout';
+import type { DailyDay } from './daily-layout';
 import { localDateFont, importDateFont, clearDateFont } from './date-font';
 import { WorkspaceTabs, useCompactScreen } from './WorkspaceTabs';
 import type { WorkspaceTab } from './WorkspaceTabs';
 import { ExportOptions } from './ExportOptions';
-import type { ExportType } from './ExportOptions';
 import { isTeamsEvent } from './event-filters';
 
 function Button({ children, onClick, className = '', disabled = false, title, type = 'button' }: { children: ReactNode; onClick?: () => void; className?: string; disabled?: boolean; title?: string; type?: 'button' | 'submit' }) {
@@ -55,9 +56,14 @@ export default function App() {
   const [refresh, setRefresh] = useState(0);
   const [syncNote, setSyncNote] = useState('');
   const [result, setResult] = useState<RenderResult | null>(null);
+  const [daily, setDaily] = useState<DailyDay[]>([]);
   const [renderError, setRenderError] = useState('');
+  const [dailyError, setDailyError] = useState('');
   const [rendering, setRendering] = useState(true);
   const [page, setPage] = useState(0);
+  const [previewKind, setPreviewKind] = useState<'weekly' | 'daily'>('weekly');
+  const [dailyDate, setDailyDate] = useState('');
+  const [dailyPage, setDailyPage] = useState(0);
   const [previewUrl, setPreviewUrl] = useState('');
   const [modal, setModal] = useState<'source'|'manual'|'export'|'help'|'preview'|'project'|'week'|null>(null);
   const [editing, setEditing] = useState<CalendarEvent | null>(null);
@@ -83,9 +89,23 @@ export default function App() {
   const visible = activeEvents.filter(e => (!project.hideTeams || !isTeamsEvent(e,project.edits[e.id])) && (originFilter === 'All' || (e.manual ? 'Your events' : e.origin || project.source.name) === originFilter) && (category === 'All' || e.category === category || e.labels?.includes(category)) && (!selectedOnly || project.selected.includes(e.id)) && `${e.title} ${e.location} ${e.description}`.toLowerCase().includes(query.toLowerCase()));
   const canSuggest = visible.some(e=>!project.selected.includes(e.id)&&!cancelled(e)&&days.some(day=>(dayFocus==='all'||dayFocus===day)&&!project.skippedDays.includes(day)&&eventOnDay(e,day,project.timezone)));
   const palette = project.palette === 'custom' ? project.customPalette : PALETTES[project.palette];
-  const dims = dimensions(project);
+  const isDaily = previewKind === 'daily';
+  const dailyDay = daily.find(item => item.day === dailyDate) ?? daily[0];
+  const currentPage = isDaily ? Math.min(dailyDay?.day === dailyDate ? dailyPage : 0, Math.max(0, (dailyDay?.pages.length ?? 1) - 1)) : page;
+  const previewPages = isDaily ? dailyDay?.pages : result?.pages;
+  const previewPage = previewPages?.[currentPage];
+  const previewWarnings = isDaily ? dailyDay?.warnings : result?.warnings;
+  const previewError = isDaily ? dailyError : renderError;
+  const previewTitle = isDaily ? `Daily Stories for ${dailyDay?.day || 'your selected dates'}` : `${project.layout === 'weekend' ? 'Weekend' : project.layout === 'full-week' ? 'Full week' : 'Weekday'} schedule`;
+  const dims = isDaily ? DAILY_SIZE : dimensions(project);
   const liveRange = project.fetchedRange === sourceRange(project);
-  const exportDisabled = !selected.length || rendering || !result || !!renderError || !!result.warnings.length;
+  const weeklyDisabled = !selected.length || rendering || !result?.count || !!renderError || !!result.warnings.length;
+  const dailyDisabled = !selected.length || rendering || !dailyDay || !!dailyError || !!dailyDay.warnings.length;
+  const slideDisabled = isDaily ? dailyDisabled : weeklyDisabled;
+  const dailyIssue = daily.find(item => item.warnings.length);
+  const packageIssue = rendering ? 'Updating your package…'
+    : weeklyDisabled ? renderError || result?.warnings[0] || 'Select events for the weekly schedule.'
+    : dailyError || (dailyIssue ? `${readableDay(dailyIssue.day)}: ${dailyIssue.warnings[0]}` : !daily.length ? 'Select events to create Daily Stories.' : '');
   const filterCount = Number(category !== 'All') + Number(originFilter !== 'All') + Number(project.hideTeams);
   const panelProps = (id: WorkspaceTab, label: string) => compact
     ? { id:`panel-${id}`, role:'tabpanel', 'aria-labelledby':`tab-${id}`, tabIndex:0 }
@@ -112,13 +132,28 @@ export default function App() {
   }, [project.week,project.source.id,project.source.url,project.source.provider,refresh]);
   useEffect(() => {
     let active = true; setRendering(true);
-    const timer = setTimeout(() => renderProject(project).then(value => { if (active) { setResult(value); setRenderError(''); setRendering(false); setPage(p => Math.min(p,value.pages.length-1)); } }).catch(error => { if (active) { setRenderError(error.message); setRendering(false); } }),80);
+    const timer = setTimeout(async () => {
+      const [weeklyResult, dailyResult] = await Promise.allSettled([renderProject(project), renderDailyProject(project)]);
+      if (!active) return;
+      if (weeklyResult.status === 'fulfilled') {
+        setResult(weeklyResult.value); setRenderError(''); setPage(p => Math.min(p, weeklyResult.value.pages.length - 1));
+      } else {
+        setResult(null); setRenderError(weeklyResult.reason instanceof Error ? weeklyResult.reason.message : 'Could not render the weekly schedule.');
+      }
+      if (dailyResult.status === 'fulfilled') {
+        setDaily(dailyResult.value); setDailyError('');
+      } else {
+        setDaily([]); setDailyError(dailyResult.reason instanceof Error ? dailyResult.reason.message : 'Could not render Daily Stories.');
+      }
+      setRendering(false);
+    }, 80);
     return () => { active = false; clearTimeout(timer); };
   }, [project,fontRevision]);
   useEffect(() => {
-    if (!result?.pages[page]) return;
-    const url = svgUrl(result.pages[page].svg); setPreviewUrl(url); return () => URL.revokeObjectURL(url);
-  }, [result,page]);
+    const url = previewPage ? svgUrl(previewPage.svg) : '';
+    setPreviewUrl(url);
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [previewPage]);
   function toggleEvent(id: string) {
     setProject(p => {
       const removing = p.selected.includes(id);
@@ -128,7 +163,7 @@ export default function App() {
   }
   async function chooseDateFont(file?: File) {
     if (!file) return;
-    try { setDateFontName(await importDateFont(file)); setFontRevision(n=>n+1); setToast('Month font saved in this browser.'); }
+    try { setDateFontName(await importDateFont(file)); setFontRevision(n=>n+1); setToast('Display font saved in this browser.'); }
     catch(error) { setToast(error instanceof Error ? error.message : 'Could not load the font.'); }
     if (fontRef.current) fontRef.current.value = '';
   }
@@ -149,14 +184,27 @@ export default function App() {
     catch (error) { setToast(error instanceof Error ? error.message : 'Could not import the project.'); }
     if (importRef.current) importRef.current.value = '';
   }
-  async function copyCaption() {
-    try { await navigator.clipboard.writeText(caption(project)); setToast('Caption copied, with dates, event details, and source links.'); }
-    catch { download(new Blob([caption(project)],{type:'text/plain'}),`ote-caption-${project.week}.txt`); setToast('Caption downloaded as a text file.'); }
+  async function copyCaption(day?: DailyDay) {
+    const text = caption(project, day);
+    try { await navigator.clipboard.writeText(text); setToast('Caption copied, with dates, event details, and source links.'); }
+    catch { download(new Blob([text],{type:'text/plain'}),`ote-caption-${day?.day ?? project.week}.txt`); setToast('Caption downloaded as a text file.'); }
   }
-  async function performExport(all: boolean) {
-    if (!result || rendering) return;
+  async function performExport(output: 'package' | 'weekly' | 'slide') {
+    if (exporting || rendering) return;
     setExporting(true);
-    try { await exportPages(project,result,exportType,all,page); setToast(all ? 'Your slides and caption are ready in a ZIP.' : 'Your image is ready.'); }
+    try {
+      if (output === 'package' && result && !packageIssue) {
+        await exportPackage(project, result, daily, exportType);
+        setToast('Your weekly schedule and Daily Stories are ready in a ZIP.');
+      } else if (output === 'weekly' && result && !weeklyDisabled) {
+        await exportPages(project, result, exportType, true, page);
+        setToast('Your weekly slides and caption are ready in a ZIP.');
+      } else if (output === 'slide' && !slideDisabled && previewPage) {
+        if (isDaily && dailyDay) await exportDailySlide(dailyDay, previewPage, exportType);
+        else if (result) await exportPages(project, result, exportType, false, page);
+        setToast('Your image is ready.');
+      }
+    }
     catch(error) { setToast(error instanceof Error ? error.message : 'Export failed.'); }
     finally { setExporting(false); }
   }
@@ -175,11 +223,15 @@ export default function App() {
     setDayFocus('all');setPage(0);
   }
   function setWeek(value: string) { if (!value) return; update({ week: monday(value) }); setPage(0); setCategory('All'); setDayFocus('all'); }
+  function goToPreviewPage(index: number) {
+    if (isDaily && dailyDay) { setDailyDate(dailyDay.day); setDailyPage(index); }
+    else setPage(index);
+  }
 
-  const exportOptions = <ExportOptions project={project} days={days} previewUrl={previewUrl}
-    width={dims.width} height={dims.height} slides={result?.pages.length || 1} page={page}
-    type={exportType} onType={setExportType} exporting={exporting} disabled={exportDisabled}
-    onDownload={all => void performExport(all)} onCaption={() => void copyCaption()}/>;
+  const exportOptions = <ExportOptions project={project} days={days} daily={daily} previewDay={isDaily ? dailyDay : undefined} previewUrl={previewUrl}
+    width={dims.width} height={dims.height} slides={previewPages?.length || 0} page={currentPage}
+    type={exportType} onType={setExportType} exporting={exporting} weeklyDisabled={weeklyDisabled} slideDisabled={slideDisabled} packageIssue={packageIssue}
+    onDownload={output => void performExport(output)} onCaption={() => void copyCaption(isDaily ? dailyDay : undefined)}/>;
 
   return <div className="app-shell">
     <header className="app-header compact-header">
@@ -210,27 +262,46 @@ export default function App() {
           <div className="events-footer"><Button className="auto-button" disabled={syncing || !canSuggest} onClick={autoPick}><Sparkles size={15}/>Add suggestions</Button><button className="text-button" disabled={!selected.length} onClick={() => update({ selected: project.selected.filter(id => !selected.some(e => e.id === id)) })}>Clear</button></div>
         </section>
         <section className="preview-panel" {...panelProps('preview','Live design preview')}><div className="preview-heading"><div><span className="step">{compact ? '03' : '02'}</span><span>Live preview</span><span className="preview-live-dot"/></div><button className="icon-button" aria-label="Enlarge preview" onClick={() => setModal('preview')} disabled={!previewUrl}><ZoomIn size={18}/></button></div>
-          <div className="canvas-workspace"><div className={`artboard ${rendering ? 'is-rendering' : ''}`} style={{ '--artboard-ratio': dims.width/dims.height } as CSSProperties}>{previewUrl ? <img src={previewUrl} alt={`${project.layout === 'weekend' ? 'Weekend' : project.layout === 'full-week' ? 'Full week' : 'Weekday'} schedule preview, slide ${page+1} of ${result?.pages.length || 1}`} className="schedule-image"/> : <div className="preview-loading"><LoaderCircle size={26} className="spinning"/><span>Preparing your design</span></div>}</div>{renderError && <div className="preview-error" role="alert">{renderError}</div>}
+          <div className="preview-output-controls">
+            <div className="preview-output-switch" role="group" aria-label="Preview output">
+              <button type="button" aria-pressed={!isDaily} onClick={() => setPreviewKind('weekly')}>Weekly schedule</button>
+              <button type="button" aria-pressed={isDaily} onClick={() => setPreviewKind('daily')}>Daily Stories</button>
+            </div>
+            {isDaily && dailyDay && <select className="daily-date-select" aria-label="Daily Story date" value={dailyDay.day} onChange={event => { setDailyDate(event.target.value); setDailyPage(0); }}>
+              {daily.map(item => <option key={item.day} value={item.day}>{readableDay(item.day, { weekday:'short' })}</option>)}
+            </select>}
+          </div>
+          <div className="canvas-workspace"><div className={`artboard ${rendering ? 'is-rendering' : ''}`} style={{ '--artboard-ratio': dims.width/dims.height } as CSSProperties}>{previewUrl && previewPage ? <img src={previewUrl} alt={`${previewTitle} preview, slide ${currentPage+1} of ${previewPages?.length || 1}`} className="schedule-image"/> : <div className="preview-loading">{rendering && <LoaderCircle size={26} className="spinning"/>}<span>{rendering ? 'Preparing your design' : isDaily && !previewError ? 'Select events to create Daily Stories' : 'Preview unavailable'}</span></div>}</div>{previewError && <div className="preview-error" role="alert">{previewError}</div>}
             {!selected.length && !rendering && <div className="preview-hint"><span><ArrowLeft size={14}/></span>{compact ? <button onClick={() => setMobileTab('events')}>Choose events for your design</button> : 'Select a few events to bring this to life'}</div>}
           </div>
-          <div className="preview-pagination" aria-label="Preview slides"><button className="icon-button" aria-label="Previous slide" disabled={page===0} onClick={() => setPage(n=>n-1)}><ChevronLeft size={17}/></button><span className="slide-position">Slide {page+1} / {result?.pages.length || 1}</span><div className="slide-dots">{result?.pages.map((p,i) => <button key={i} className={page===i ? 'active' : ''} aria-current={page===i ? 'true' : undefined} aria-label={`Show slide ${i+1}`} onClick={() => setPage(i)}><span>{p.number}</span></button>)}</div><button className="icon-button" aria-label="Next slide" disabled={!result || page===result.pages.length-1} onClick={() => setPage(n=>n+1)}><ChevronRight size={17}/></button></div>
-          <div className="preview-meta"><span><Monitor size={13}/>{dims.width} × {dims.height} px</span><span>{result?.pages.length || 1} slide{result?.pages.length===1?'':'s'}<span className="meta-separator">·</span>{selected.length} event{selected.length===1?'':'s'}</span></div>
-          {(result?.warnings.length || 0) > 0 && <div className="layout-warnings" role="alert"><AlertTriangle size={16}/><div><strong>A quick layout check</strong>{result!.warnings.map(w => <p key={w}>{w}</p>)}</div></div>}
-          {result && result.pages.length > 1 && !result.warnings.length && <div className="pagination-note"><CheckCheck size={15}/><div><strong>{selected.length} events selected · {result.pages.length} slides</strong><p>This slide shows {result.pages[page]?.eventCount || 0} events. Use the arrows to see the rest. Extra slides keep the text readable.</p>{project.template==='cards' && <button className="text-button" onClick={()=>switchTemplate('list')}>Try the compact weekly list</button>}</div></div>}
+          {previewPages && <div className="preview-pagination" aria-label="Preview slides"><button className="icon-button" aria-label="Previous slide" disabled={currentPage===0} onClick={() => goToPreviewPage(currentPage-1)}><ChevronLeft size={17}/></button><span className="slide-position">{isDaily ? (currentPage === 0 ? 'Cover' : 'Event') + ' · ' : ''}Slide {currentPage+1} / {previewPages.length}</span>{previewPages.length <= 10 && <div className="slide-dots">{previewPages.map((p,i) => <button key={i} className={currentPage===i ? 'active' : ''} aria-current={currentPage===i ? 'true' : undefined} aria-label={`Show slide ${i+1}`} onClick={() => goToPreviewPage(i)}><span>{p.number}</span></button>)}</div>}<button className="icon-button" aria-label="Next slide" disabled={currentPage===previewPages.length-1} onClick={() => goToPreviewPage(currentPage+1)}><ChevronRight size={17}/></button></div>}
+          <div className="preview-meta"><span><Monitor size={13}/>{dims.width} × {dims.height} px</span><span>{isDaily ? `${dailyDay?.events.length ?? 0} event(s) on this date` : `${previewPages?.length || 1} slide${previewPages?.length===1?'':'s'} · ${selected.length} event${selected.length===1?'':'s'}`}</span></div>
+          {!!previewWarnings?.length && <div className="layout-warnings" role="alert"><AlertTriangle size={16}/><div><strong>A quick layout check</strong>{previewWarnings.map(w => <p key={w}>{w}</p>)}</div></div>}
+          {!isDaily && result && result.pages.length > 1 && !result.warnings.length && <div className="pagination-note"><CheckCheck size={15}/><div><strong>{selected.length} events selected · {result.pages.length} slides</strong><p>This slide shows {result.pages[page]?.eventCount || 0} events. Use the arrows to see the rest. Extra slides keep the text readable.</p>{project.template==='cards' && <button className="text-button" onClick={()=>switchTemplate('list')}>Try the compact weekly list</button>}</div></div>}
         </section>
         <section className="panel design-panel" {...panelProps('design','Design and export')}><div className="panel-heading"><div><span className="step">{compact ? '02' : '03'}</span><h2>Design</h2></div><SlidersHorizontal size={17}/></div><div className="design-scroll"><div className="control-section template-section"><div className="control-label"><span>Schedule style</span></div><div className="template-switch"><button aria-pressed={project.template==='cards'} className={project.template==='cards'?'active':''} onClick={()=>switchTemplate('cards')}><strong>Original cards</strong><small>Textured date badges</small></button><button aria-pressed={project.template==='list'} className={project.template==='list'?'active':''} onClick={()=>switchTemplate('list')}><strong>Weekly list</strong><small>Seven days · compact bullets</small></button></div></div>
           <div className="control-section"><div className="control-label"><span>Format</span><span>INSTAGRAM READY</span></div><div className="format-grid"><button aria-pressed={project.format === 'portrait'} className={project.format === 'portrait' ? 'active' : ''} onClick={() => update({ format:'portrait' })}><span className="format-icon portrait"/><strong>Post</strong><small>4:5</small>{project.format==='portrait' && <Check size={12}/>}</button><button aria-pressed={project.format === 'story'} className={project.format === 'story' ? 'active' : ''} onClick={() => update({ format:'story' })}><span className="format-icon story"/><strong>Story</strong><small>9:16</small>{project.format==='story' && <Check size={12}/>}</button><button aria-pressed={project.format === 'original'} className={project.format === 'original' ? 'active' : ''} onClick={() => update({ format:'original' })}><span className="format-icon original"/><strong>Original</strong><small>Figma</small>{project.format==='original' && <Check size={12}/>}</button></div></div>
           <div className="control-section"><div className="control-label"><span>Colour palette</span><PaletteIcon size={14}/></div><div className="palette-grid">{Object.entries(PALETTES).map(([key,p]) => <button key={key} className={`palette-choice ${project.palette===key?'active':''}`} aria-label={`${p.name} palette`} aria-pressed={project.palette===key} onClick={() => update({ palette:key })}><span className="palette-sample" style={{background:p.paper}}><span style={{background:p.accent}}/>{project.palette===key && <span className="palette-check"><Check size={10}/></span>}</span><small>{p.name}</small></button>)}<button className={`palette-choice ${project.palette==='custom'?'active':''}`} aria-label="Custom palette" onClick={() => update({ palette:'custom' })}><span className="palette-sample custom"><Plus size={16}/></span><small>Custom</small></button></div>{project.palette === 'custom' && <div className="custom-colors">{(['paper','ink','accent','badgeInk'] as (keyof Palette)[]).map(key => <label key={key}><input type="color" value={project.customPalette[key]} aria-label={`Custom ${key} color`} onChange={e => update({ customPalette: { ...project.customPalette,[key]:e.target.value } })}/><span>{{paper:'Background',ink:'Text',accent:'Accent',badgeInk:'Day labels'}[key as string]}</span></label>)}</div>}<div className="palette-note"><span style={{background:palette.accent}}/>Made from your original OTE designs.</div></div>
-          <div className="control-section"><div className="control-label"><span>Event details</span><Settings2 size={14}/></div><label className="toggle-row"><span>Event titles</span><input type="checkbox" checked={project.showTitle} onChange={e=>update({showTitle:e.target.checked})}/><span className="toggle"/></label><label className="toggle-row"><span>Event times</span><input type="checkbox" checked={project.showTime} onChange={e=>update({showTime:e.target.checked})}/><span className="toggle"/></label><label className="toggle-row"><span>Show locations</span><input type="checkbox" checked={project.showLocation} onChange={e => update({ showLocation:e.target.checked })}/><span className="toggle"/></label><label className="toggle-row"><span>Include descriptions</span><input type="checkbox" checked={project.showDescription} onChange={e => update({ showDescription:e.target.checked })}/><span className="toggle"/></label><label className="toggle-row"><span>Skip empty dates</span><input type="checkbox" checked={project.hideEmptyDays} onChange={e=>update({hideEmptyDays:e.target.checked})}/><span className="toggle"/></label><div className="text-size-label"><span>Text size</span><span>{Math.round(project.textScale*100)}%</span></div><input type="range" min="0.75" max="1.4" step="0.05" value={project.textScale} aria-label="Text size" onChange={e => update({textScale:Number(e.target.value)})}/><div className="range-labels"><span>Smaller</span><span>Larger</span></div><p className="control-note">Use an event’s pencil to edit or hide individual fields.</p></div>
-          {project.template==='cards' && <details className="control-section layout-controls" open><summary>Spacing & date badges</summary><label className="position-control"><span>Heading position<output>{project.headingOffset === 0 ? 'Default' : `${project.headingOffset > 0 ? '+' : ''}${project.headingOffset}%`}</output></span><input type="range" aria-label="Heading position" min="-2" max="1" step="0.1" value={project.headingOffset} onChange={e=>update({headingOffset:Number(e.target.value)})}/></label><label className="position-control"><span>Month badge position<output>{project.stampOffset === 0 ? 'Default' : `${project.stampOffset > 0 ? '+' : ''}${project.stampOffset}%`}</output></span><input type="range" aria-label="Month badge position" min="-2" max="1" step="0.1" value={project.stampOffset} onChange={e=>update({stampOffset:Number(e.target.value)})}/></label><div className="range-labels"><span>Move up</span><span>Move down</span></div><label className="position-control"><span>Day badge height<output>{Math.round(project.badgeHeight*100)}%</output></span><input type="range" aria-label="Day badge height" min="1" max="1.5" step="0.05" value={project.badgeHeight} onChange={e=>update({badgeHeight:Number(e.target.value)})}/></label><button className="text-button" onClick={()=>update({headingOffset:0,stampOffset:0,badgeHeight:1.2})}>Reset spacing</button><p className="control-note">Textured day badges and a shared edge margin across all formats. October 2026 uses your original Salted lettering.</p><div className="local-font-control"><span>Month font · {dateFontName || 'Original artwork / Kalam'}</span><button className="text-button" onClick={()=>fontRef.current?.click()}>{dateFontName ? 'Change local font' : 'Use a local font'}</button>{dateFontName && <button className="text-button" onClick={()=>{clearDateFont();setDateFontName('');setFontRevision(n=>n+1);}}>Remove font</button>}<input ref={fontRef} className="sr-only" type="file" accept=".otf,.ttf,.woff" aria-label="Local month font" onChange={e=>void chooseDateFont(e.target.files?.[0])}/><small>Load Salted for other months. Font files stay in this browser.</small></div></details>}
+          <div className="control-section">
+            <div className="control-label"><span>Display font</span></div>
+            <div className="local-font-control">
+              <span>{dateFontName || 'Original artwork and built-in fonts'}</span>
+              <button className="text-button" onClick={() => fontRef.current?.click()}>{dateFontName ? 'Change local font' : 'Use a local font'}</button>
+              {dateFontName && <button className="text-button" onClick={() => { clearDateFont(); setDateFontName(''); setFontRevision(n => n + 1); }}>Remove font</button>}
+              <input ref={fontRef} className="sr-only" type="file" accept=".otf,.ttf,.woff" aria-label="Local display font" onChange={e => void chooseDateFont(e.target.files?.[0])}/>
+              <small>Use Salted for headings and dates across weekly and daily designs. Font files stay in this browser.</small>
+            </div>
+          </div>
+          <div className="control-section"><div className="control-label"><span>Event details</span><Settings2 size={14}/></div><label className="toggle-row"><span>Event titles</span><input type="checkbox" checked={project.showTitle} onChange={e=>update({showTitle:e.target.checked})}/><span className="toggle"/></label><label className="toggle-row"><span>Weekly event times</span><input type="checkbox" checked={project.showTime} onChange={e=>update({showTime:e.target.checked})}/><span className="toggle"/></label><label className="toggle-row"><span>Show locations</span><input type="checkbox" checked={project.showLocation} onChange={e => update({ showLocation:e.target.checked })}/><span className="toggle"/></label><label className="toggle-row"><span>Weekly descriptions</span><input type="checkbox" checked={project.showDescription} onChange={e => update({ showDescription:e.target.checked })}/><span className="toggle"/></label><label className="toggle-row"><span>Skip empty dates</span><input type="checkbox" checked={project.hideEmptyDays} onChange={e=>update({hideEmptyDays:e.target.checked})}/><span className="toggle"/></label><div className="text-size-label"><span>Text size</span><span>{Math.round(project.textScale*100)}%</span></div><input type="range" min="0.75" max="1.4" step="0.05" value={project.textScale} aria-label="Text size" onChange={e => update({textScale:Number(e.target.value)})}/><div className="range-labels"><span>Smaller</span><span>Larger</span></div><p className="control-note">Use an event’s pencil to edit or hide individual fields.</p></div>
+          {project.template==='cards' && <details className="control-section layout-controls" open><summary>Spacing & date badges</summary><label className="position-control"><span>Heading position<output>{project.headingOffset === 0 ? 'Default' : `${project.headingOffset > 0 ? '+' : ''}${project.headingOffset}%`}</output></span><input type="range" aria-label="Heading position" min="-2" max="1" step="0.1" value={project.headingOffset} onChange={e=>update({headingOffset:Number(e.target.value)})}/></label><label className="position-control"><span>Month badge position<output>{project.stampOffset === 0 ? 'Default' : `${project.stampOffset > 0 ? '+' : ''}${project.stampOffset}%`}</output></span><input type="range" aria-label="Month badge position" min="-2" max="1" step="0.1" value={project.stampOffset} onChange={e=>update({stampOffset:Number(e.target.value)})}/></label><div className="range-labels"><span>Move up</span><span>Move down</span></div><label className="position-control"><span>Day badge height<output>{Math.round(project.badgeHeight*100)}%</output></span><input type="range" aria-label="Day badge height" min="1" max="1.5" step="0.05" value={project.badgeHeight} onChange={e=>update({badgeHeight:Number(e.target.value)})}/></label><button className="text-button" onClick={()=>update({headingOffset:0,stampOffset:0,badgeHeight:1.2})}>Reset spacing</button><p className="control-note">Textured day badges and a shared edge margin across all formats. October 2026 uses your original Salted lettering.</p></details>}
+          <div className="control-section"><div className="control-label"><span>Daily Story details</span></div><label className="toggle-row"><span>Daily event times</span><input type="checkbox" checked={project.dailyShowTime} onChange={e=>update({dailyShowTime:e.target.checked})}/><span className="toggle"/></label><label className="toggle-row"><span>Daily descriptions</span><input type="checkbox" checked={project.dailyShowDescription} onChange={e=>update({dailyShowDescription:e.target.checked})}/><span className="toggle"/></label></div>
           <div className="capacity-card"><div className="control-label"><span>Layout capacity</span><span>{result?.pages.length || 1} / 10 slides</span></div>{result?.capacity.map(c=><div className="capacity-row" key={c.day} title={`${Math.round(c.used)} / ${Math.round(c.available)} px on slide 1 · approximately ${c.typicalLimit} short events per slide`}><span>{dayLabel(c.day)} {Number(c.day.slice(8))}</span><div className="capacity-track"><span style={{width:`${Math.min(100,c.used/c.available*100)}%`}}/></div><span>{c.events} events · {c.slides}×</span></div>)}<p>Measured from wrapped text and visible fields. Extra events flow to another slide; oversized entries block export.</p></div>
 
-        </div><div className="export-footer"><Button className="primary export-main" disabled={exportDisabled} onClick={() => setModal('export')}><Download size={17}/>Export your design<ArrowUpRight size={17}/></Button><button className="caption-button" disabled={!selected.length} onClick={() => void copyCaption()}><Copy size={13}/>Copy Instagram caption</button><div className="privacy-note"><Laptop size={12}/>Your work stays on your device.</div></div></section>
+        </div><div className="export-footer"><Button className="primary export-main" disabled={weeklyDisabled && (!isDaily || dailyDisabled)} onClick={() => setModal('export')}><Download size={17}/>Export your design<ArrowUpRight size={17}/></Button><button className="caption-button" disabled={!selected.length} onClick={() => void copyCaption()}><Copy size={13}/>Copy Instagram caption</button><div className="privacy-note"><Laptop size={12}/>Your work stays on your device.</div></div></section>
         {compact && <section className="panel mobile-export-panel" {...panelProps('export','Export design')}>
-          <div className="panel-heading"><div><span className="step">04</span><h2>Export</h2></div><span className="export-readiness">{rendering ? 'Updating…' : exportDisabled ? 'Needs a quick check' : 'Ready to download'}</span></div>
+          <div className="panel-heading"><div><span className="step">04</span><h2>Export</h2></div><span className="export-readiness">{rendering ? 'Updating…' : packageIssue ? 'Needs a quick check' : 'Ready to download'}</span></div>
           <div className="mobile-export-scroll">
             {!selected.length ? <div className="empty-state"><Download size={28}/><h3>Your design starts with events</h3><p>Choose events, adjust the design, then download your image here.</p><Button className="primary" onClick={() => setMobileTab('events')}>Choose events</Button></div> : <>
-              {exportDisabled && <div className="export-check" role="status"><AlertTriangle size={18}/><div>{rendering ? 'Updating your design. Downloads will be ready in a moment.' : renderError || result?.warnings.join(' ') || 'Check your design before downloading.'}{!rendering && <button className="text-button" onClick={() => setMobileTab('preview')}>Review preview</button>}</div></div>}
               {exportOptions}
             </>}
           </div>
@@ -240,23 +311,24 @@ export default function App() {
     </main>
     <WorkspaceTabs active={mobileTab} onChange={setMobileTab} count={selected.length}/>
     {toast && <div className="toast" role="status"><Check size={16}/>{toast}<button className="icon-button" aria-label="Dismiss notification" onClick={() => setToast('')}><X size={15}/></button></div>}
-    {editing && <EventEditor event={editing} project={project} onClose={() => setEditing(null)} onSave={edit => { setProject(p => ({ ...p, edits:{ ...p.edits,[editing.id]:edit } })); setEditing(null); setToast('Event updated in your design.'); }} onRestore={() => { setProject(p => { const edits = { ...p.edits }; delete edits[editing.id]; return { ...p,edits }; }); setEditing(null); }} onDelete={editing.manual ? () => { setProject(p => ({ ...p, manualEvents:p.manualEvents.filter(e=>e.id!==editing.id), selected:p.selected.filter(id=>id!==editing.id) })); setEditing(null); } : undefined}/>}
+    {editing && <EventEditor event={editing} project={project} daily={isDaily} onClose={() => setEditing(null)} onSave={edit => { setProject(p => ({ ...p, edits:{ ...p.edits,[editing.id]:edit } })); setEditing(null); setToast('Event updated in your design.'); }} onRestore={() => { setProject(p => { const edits = { ...p.edits }; delete edits[editing.id]; return { ...p,edits }; }); setEditing(null); }} onDelete={editing.manual ? () => { setProject(p => ({ ...p, manualEvents:p.manualEvents.filter(e=>e.id!==editing.id), selected:p.selected.filter(id=>id!==editing.id) })); setEditing(null); } : undefined}/>}
     {modal==='source' && <SourceDialog source={project.source} onClose={() => setModal(null)} onSave={source => { update({source,events:[],fetchedAt:null,fetchedRange:''}); setCategory('All'); setOriginFilter('All'); setDayFocus('all'); setModal(null); }}/>} 
     {modal==='manual' && <ManualDialog day={days[0]} timezone={project.timezone} onClose={() => setModal(null)} onSave={event => { setProject(p => ({ ...p, manualEvents:[...p.manualEvents,event], selected:[...p.selected,event.id] })); setModal(null); setToast('Your event has been added to the design.'); }}/>} 
-    {modal==='preview' && <Modal title="Your design, up close" subtitle={`${dims.width} × ${dims.height} px · Slide ${page+1} of ${result?.pages.length || 1}`} onClose={() => setModal(null)} wide><div className="large-preview">{previewUrl && <img src={previewUrl} alt="Enlarged schedule design"/>}</div></Modal>}
-    {modal==='export' && <Modal title="Export design" subtitle="The exact design you see, at full Instagram resolution." onClose={() => { if (!exporting) setModal(null); }}>{exportOptions}</Modal>}
+    {modal==='preview' && <Modal title="Your design, up close" subtitle={`${dims.width} × ${dims.height} px · Slide ${currentPage+1} of ${previewPages?.length || 1}`} onClose={() => setModal(null)} wide><div className="large-preview">{previewUrl && <img src={previewUrl} alt={`Enlarged ${previewTitle}`}/>}</div></Modal>}
+    {modal==='export' && <Modal title="Export design" subtitle="Download the full media package or a single design." onClose={() => { if (!exporting) setModal(null); }}>{exportOptions}</Modal>}
     {modal==='week' && <Modal title="Choose week" subtitle={`${rangeLabel(days)} · Pacific time`} onClose={() => setModal(null)}><div className="week-options"><div className="week-navigation"><button className="button secondary" aria-label="Previous week" onClick={() => setWeek(addDays(project.week,-7))}><ChevronLeft size={18}/></button><Button className="secondary" onClick={() => setWeek(dateKey(new Date(),project.timezone))}>This week</Button><button className="button secondary" aria-label="Next week" onClick={() => setWeek(addDays(project.week,7))}><ChevronRight size={18}/></button></div><label className="field-label">Week starting<input type="date" value={project.week} aria-label="Week starting" onChange={e => setWeek(e.target.value)}/><small>Pick any date. The schedule starts on that week’s Monday.</small></label><Button className="primary full" onClick={() => setModal(null)}>Done</Button></div></Modal>}
     {modal==='project' && <Modal title="Your project" subtitle={saveError || 'Saved automatically on this device.'} onClose={() => setModal(null)}><div className="project-menu"><Button className="secondary full" onClick={() => { setModal(null); importRef.current?.click(); }}><FolderOpen size={18}/>Open project</Button><Button className="secondary full" onClick={() => { saveProject(); setModal(null); }}><Download size={18}/>Save project</Button><Button className="secondary full" onClick={() => setModal('help')}><CircleHelp size={18}/>How Media Studio works</Button><p>Save a project backup to continue on another device. Your selections and edits stay together.</p></div></Modal>}
-    {modal==='help' && <Modal title="Media Studio help" subtitle="A small studio for sharing what’s happening around campus." onClose={() => setModal(null)}><div className="help-content"><div><span className="step">01</span><p><strong>Pick your week and events.</strong> The public calendar syncs automatically. Select what matters, or add your own event with the + button.</p></div><div><span className="step">02</span><p><strong>Make it sound like you.</strong> Edit any title, venue, displayed time, or description using its pencil. Simplify makes a shorter first-sentence summary; you have the final say.</p></div><div><span className="step">03</span><p><strong>Choose a style and export.</strong> Original cards keep the textured artwork. Weekly list uses compact bullets and supports all seven days. Post and Story use Instagram dimensions. Original preserves the supplied Figma proportions. Extra events flow to additional slides. Very long entries need a shorter edit before export.</p></div><div className="info-box"><ShieldCheck size={18}/><p>Edits save in this browser. Save project downloads a portable backup; Open project restores it. Refreshing the calendar preserves your edits. Calendar data is read directly from its public API; nothing is published back.</p></div><p className="small-note">The original decorative artwork and layout come from your supplied SVGs. Month, year, and date labels use local fonts to support any date. Date chips browse events without changing the design. Use each day’s In design checkbox to hide it, or enable Skip empty dates. The remaining date boxes expand automatically. Capacity is calculated from the text that is visible in each event.</p></div></Modal>}
+    {modal==='help' && <Modal title="Media Studio help" subtitle="A small studio for sharing what’s happening around campus." onClose={() => setModal(null)}><div className="help-content"><div><span className="step">01</span><p><strong>Pick your week and events.</strong> The public calendar syncs automatically. Select what matters, or add your own event with the + button.</p></div><div><span className="step">02</span><p><strong>Make it sound like you.</strong> Edit any title, venue, displayed time, or description using its pencil. Simplify makes a shorter first-sentence summary; you have the final say.</p></div><div><span className="step">03</span><p><strong>Choose a style and export.</strong> Original cards keep the textured artwork. Weekly list uses compact bullets and supports all seven days. Post and Story use Instagram dimensions. Original preserves the supplied Figma proportions. Extra events flow to additional slides. Preview Daily Stories for a dated cover and one slide per event. Export the weekly and daily designs in one ZIP. Very long entries need a shorter edit before export.</p></div><div className="info-box"><ShieldCheck size={18}/><p>Edits save in this browser. Save project downloads a portable backup; Open project restores it. Refreshing the calendar preserves your edits. Calendar data is read directly from its public API; nothing is published back.</p></div><p className="small-note">The original decorative artwork and layout come from your supplied SVGs. Month, year, and date labels use local fonts to support any date. Date chips browse events without changing the design. Use each day’s In design checkbox to hide it, or enable Skip empty dates. The remaining date boxes expand automatically. Capacity is calculated from the text that is visible in each event.</p></div></Modal>}
   </div>;
 }
 
-function EventEditor({ event, project, onClose, onSave, onRestore, onDelete }: { event: CalendarEvent; project: Project; onClose: () => void; onSave: (edit: EventEdit) => void; onRestore: () => void; onDelete?: () => void }) {
+function EventEditor({ event, project, daily, onClose, onSave, onRestore, onDelete }: { event: CalendarEvent; project: Project; daily: boolean; onClose: () => void; onSave: (edit: EventEdit) => void; onRestore: () => void; onDelete?: () => void }) {
   const existing = project.edits[event.id] || {};
-  const [edit,setEdit] = useState<EventEdit>({ title:existing.title ?? event.title, description:existing.description ?? event.description, location:existing.location ?? event.location, timeLabel:existing.timeLabel, showTitle:existing.showTitle ?? project.showTitle, showTime:existing.showTime ?? project.showTime, showLocation:existing.showLocation ?? project.showLocation, showDescription:existing.showDescription ?? project.showDescription });
+  const [edit,setEdit] = useState<EventEdit>({ title:existing.title ?? event.title, description:existing.description ?? event.description, location:existing.location ?? event.location, timeLabel:existing.timeLabel, showTitle:existing.showTitle, showTime:existing.showTime, showLocation:existing.showLocation, showDescription:existing.showDescription });
+  const defaults = { showTitle: project.showTitle, showLocation: project.showLocation, showTime: daily ? project.dailyShowTime : project.showTime, showDescription: daily ? project.dailyShowDescription : project.showDescription };
   const [error,setError] = useState('');
   function submit(e:FormEvent) { e.preventDefault(); if (!edit.title?.trim()) { setError('Give this event a title before saving.'); return; } onSave(edit); }
-  return <Modal title="Edit event" subtitle="Edit the content and choose which fields appear." onClose={onClose}><form className="dialog-form" onSubmit={submit}><div className="field-visibility"><span>Visible fields</span>{([ ['showTitle','Title'],['showTime','Time'],['showLocation','Location'],['showDescription','Description']] as const).map(([key,label])=><label key={key}><input type="checkbox" aria-label={`Show event ${label.toLowerCase()}`} checked={edit[key] ?? true} onChange={e=>setEdit({...edit,[key]:e.target.checked})}/>{label}</label>)}</div><div className="editor-source"><span className="event-category">{event.category}</span><span>{readableDay(dateKey(event.start,project.timezone),{year:'numeric'})} · {formatTime(event,undefined,project.timezone)}</span>{safeUrl(event.url) && <a href={safeUrl(event.url)} target="_blank" rel="noreferrer">View source<ExternalLink size={12}/></a>}</div><label className="field-label">Event title<input required maxLength={400} value={edit.title} onChange={e=>setEdit({...edit,title:e.target.value})}/></label><label className="field-label">Location<input maxLength={400} value={edit.location} onChange={e=>setEdit({...edit,location:e.target.value})}/></label><label className="field-label">Display time <span className="optional">optional override</span><input maxLength={120} value={edit.timeLabel ?? ''} placeholder={formatTime(event,undefined,project.timezone)} onChange={e=>setEdit({...edit,timeLabel:e.target.value || undefined})}/><small>Leave blank for automatic times. This changes the label, not the event date.</small></label><label className="field-label">Description<textarea aria-label="Description" rows={4} maxLength={12000} value={edit.description} onChange={e=>setEdit({...edit,description:e.target.value})}/></label><div className="editor-description-actions"><Button className="secondary compact" onClick={()=>setEdit({...edit,description:simplifyText(edit.description || '')})}><Sparkles size={14}/>Simplify description</Button><span className="small-note">Local text summary</span></div>{error && <p role="alert" className="form-error">{error}</p>}<div className="dialog-footer"><button type="button" className="text-button" onClick={onRestore}><RefreshCw size={13}/>Restore original</button>{onDelete && <button type="button" className="icon-button danger" aria-label="Delete custom event" onClick={onDelete}><Trash2 size={16}/></button>}<Button className="primary" type="submit"><Check size={15}/>Save edits</Button></div></form></Modal>;
+  return <Modal title="Edit event" subtitle="Edit the content or set field visibility for this event in both outputs." onClose={onClose}><form className="dialog-form" onSubmit={submit}><div className="field-visibility"><span>Visible fields</span>{([ ['showTitle','Title'],['showTime','Time'],['showLocation','Location'],['showDescription','Description']] as const).map(([key,label])=><label key={key}><input type="checkbox" aria-label={`Show event ${label.toLowerCase()}`} checked={edit[key] ?? defaults[key]} onChange={e=>setEdit({...edit,[key]:e.target.checked})}/>{label}</label>)}</div><div className="editor-source"><span className="event-category">{event.category}</span><span>{readableDay(dateKey(event.start,project.timezone),{year:'numeric'})} · {formatTime(event,undefined,project.timezone)}</span>{safeUrl(event.url) && <a href={safeUrl(event.url)} target="_blank" rel="noreferrer">View source<ExternalLink size={12}/></a>}</div><label className="field-label">Event title<input required maxLength={400} value={edit.title} onChange={e=>setEdit({...edit,title:e.target.value})}/></label><label className="field-label">Location<input maxLength={400} value={edit.location} onChange={e=>setEdit({...edit,location:e.target.value})}/></label><label className="field-label">Display time <span className="optional">optional override</span><input maxLength={120} value={edit.timeLabel ?? ''} placeholder={formatTime(event,undefined,project.timezone)} onChange={e=>setEdit({...edit,timeLabel:e.target.value || undefined})}/><small>Leave blank for automatic times. This changes the label, not the event date.</small></label><label className="field-label">Description<textarea aria-label="Description" rows={4} maxLength={12000} value={edit.description} onChange={e=>setEdit({...edit,description:e.target.value})}/></label><div className="editor-description-actions"><Button className="secondary compact" onClick={()=>setEdit({...edit,description:simplifyText(edit.description || '')})}><Sparkles size={14}/>Simplify description</Button><span className="small-note">Local text summary</span></div>{error && <p role="alert" className="form-error">{error}</p>}<div className="dialog-footer"><button type="button" className="text-button" onClick={onRestore}><RefreshCw size={13}/>Restore original</button>{onDelete && <button type="button" className="icon-button danger" aria-label="Delete custom event" onClick={onDelete}><Trash2 size={16}/></button>}<Button className="primary" type="submit"><Check size={15}/>Save edits</Button></div></form></Modal>;
 }
 function SourceDialog({ source,onClose,onSave }: { source:Source; onClose:()=>void; onSave:(s:Source)=>void }) {
   const [draft,setDraft] = useState(source); const [error,setError] = useState('');

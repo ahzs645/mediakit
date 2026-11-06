@@ -252,9 +252,6 @@
   .export-summary span { font-size: 11px; color: #758568; }
   .export-dialog-body > .button { min-height: 48px; font-size: 13px; }
   .caption-button, .export-dialog-body > .caption-button { min-height: 44px; font-size: 12px; padding: 12px 4px; }
-  .export-check { display: flex; gap: 9px; padding: 12px; margin: 8px 16px 0; background: #fff7e9; border-radius: 8px; font-size: 12px; line-height: 1.6; color: #806539; }
-  .export-check > svg { flex-shrink: 0; }
-  .export-check .text-button { display: block; font-size: 12px; min-height: 36px; }
   .empty-state { padding: 40px 20px; }
   .empty-state h3 { font-size: 16px; }
   .empty-state p { font-size: 13px; color: #708460; }
@@ -317,4 +314,11 @@
   .date-chip > span { font-size: 9px; }
   .palette-grid { grid-template-columns: repeat(3, 1fr); }
   .field-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px), (max-width: 1000px) and (max-height: 500px) {
+  .preview-output-controls { gap: 5px; margin-bottom: 5px; }
+  .preview-output-switch > button, .daily-date-select { min-height: 44px; }
+  .daily-date-select { font-size: 16px; padding: 0 6px; }
+  .package-issue { font-size: 12px; }
 }
