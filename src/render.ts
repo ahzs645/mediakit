@@ -267,3 +267,39 @@ export async function exportPages(project: Project, result: RenderResult, type: 
     download(await zip.generateAsync({ type: 'blob' }),`${base}.zip`);
   } else download(blobs[0].blob,blobs[0].name);
 }
+
+/** True when the browser can hand image files to the system share sheet (iOS/iPadOS Safari, Android, macOS Safari). */
+export function canShareImages(): boolean {
+  try {
+    return typeof navigator !== 'undefined' && typeof navigator.share === 'function' && typeof navigator.canShare === 'function'
+      && navigator.canShare({ files: [new File([new Uint8Array(1)], 'check.png', { type: 'image/png' })] });
+  } catch { return false; }
+}
+
+/** Photos only accepts raster images, so SVG choices are shared as PNG. */
+const photoType = (type: ExportType): 'png' | 'jpeg' => type === 'jpeg' ? 'jpeg' : 'png';
+const toFile = async (page: RenderedPage, type: 'png' | 'jpeg', name: string) =>
+  new File([await rasterize(page, type)], `${name}.${imageExtension(type)}`, { type: `image/${type}` });
+
+export async function photoFiles(project: Project, weekly: RenderResult | null | undefined, daily: DailyDay[], type: ExportType): Promise<File[]> {
+  if (!weekly?.count || weekly.warnings.length) throw new Error('Resolve the weekly layout warnings before saving.');
+  if (daily.some(day => day.warnings.length)) throw new Error('Resolve the daily layout warnings before saving.');
+  const kind = photoType(type), files: File[] = [];
+  // One slide at a time keeps memory low on phones.
+  for (const page of weekly.pages) files.push(await toFile(page, kind, `${weeklyBase(project)}-${pageNumber(page)}`));
+  for (const day of daily) for (const page of day.pages) files.push(await toFile(page, kind, `ote-daily-${day.day}-${pageNumber(page)}-${page.eventCount ? 'event' : 'cover'}`));
+  return files;
+}
+
+export async function slideFile(page: RenderedPage, type: ExportType, name: string): Promise<File[]> {
+  return [await toFile(page, photoType(type), name)];
+}
+
+/** Opens the share sheet. Resolves false when the person dismissed it. */
+export async function shareImages(files: File[]): Promise<boolean> {
+  try { await navigator.share({ files }); return true; }
+  catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') return false;
+    throw error;
+  }
+}

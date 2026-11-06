@@ -71,7 +71,7 @@ test('previews both outputs and downloads dated Story sets alongside the weekly 
   await page.getByRole('button', { name: 'Export your design', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('5 daily Story slides across 2 dates');
   const next = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download weekly + daily package', exact: true }).click();
+  await page.getByRole('button', { name: 'Download everything as ZIP', exact: true }).click();
   const archive = await next;
   expect(archive.suggestedFilename()).toBe('ote-media-package-2026-10-19.zip');
   const zip = await JSZip.loadAsync(await fs.readFile((await archive.path())!));

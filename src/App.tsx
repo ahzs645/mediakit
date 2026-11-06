@@ -6,7 +6,7 @@ import { PALETTES } from './types';
 import { addDays, dateKey, daysFor, dayLabel, eventOnDay, formatTime, localToIso, monday, rangeLabel, readableDay } from './dates';
 import { cleanText, fetchEvents, safeUrl, simplifyText } from './api';
 import { loadProject, parseProject, STORAGE_KEY } from './storage';
-import { caption, dimensions, download, exportDailySlide, exportPackage, exportPages, renderDailyProject, renderProject, selectedEvents, svgUrl } from './render';
+import { canShareImages, caption, dimensions, download, exportDailySlide, exportPackage, exportPages, photoFiles, renderDailyProject, renderProject, selectedEvents, shareImages, slideFile, svgUrl } from './render';
 import type { ExportType, RenderResult } from './render';
 import { DAILY_SIZE } from './daily-layout';
 import type { DailyDay } from './daily-layout';
@@ -70,6 +70,9 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [saveError, setSaveError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [canShare] = useState(canShareImages);
+  // Images rendered for the share sheet, kept when iOS needs a second tap to open it.
+  const [prepared, setPrepared] = useState<{ key: string; files: File[] } | null>(null);
   const [exportType, setExportType] = useState<ExportType>('png');
   const [mobileTab, setMobileTab] = useState<WorkspaceTab>('events');
   const compact = useCompactScreen();
@@ -189,8 +192,33 @@ export default function App() {
     try { await navigator.clipboard.writeText(text); setToast('Caption copied, with dates, event details, and source links.'); }
     catch { download(new Blob([text],{type:'text/plain'}),`ote-caption-${day?.day ?? project.week}.txt`); setToast('Caption downloaded as a text file.'); }
   }
-  async function performExport(output: 'package' | 'weekly' | 'slide') {
+  async function saveToPhotos(scope: 'photos' | 'photo-slide') {
+    const key = `${scope}|${exportType}|${previewUrl}|${isDaily ? dailyDay?.day : ''}|${currentPage}|${daily.length}|${result?.pages.length}`;
+    let files = prepared?.key === key ? prepared.files : null;
+    if (!files) {
+      files = scope === 'photos' ? await photoFiles(project, result, daily, exportType)
+        : previewPage ? await slideFile(previewPage, exportType, isDaily && dailyDay ? `ote-daily-${dailyDay.day}-${currentPage + 1}` : `ote-${project.week}-${currentPage + 1}`) : [];
+      if (!files.length) return;
+      setPrepared({ key, files });
+    }
+    try {
+      if (await shareImages(files)) { setPrepared(null); setToast(`Shared ${files.length} image${files.length === 1 ? '' : 's'}. Choose “Save Images” to add them to Photos.`); }
+    } catch (error) {
+      // Safari only opens the share sheet straight from a tap; rendering can outlast that window.
+      if (error instanceof DOMException && error.name === 'NotAllowedError') setToast(`${files.length} image${files.length === 1 ? ' is' : 's are'} ready. Tap “Open share sheet” to save to Photos.`);
+      else throw error;
+    }
+  }
+  async function performExport(output: 'package' | 'weekly' | 'slide' | 'photos' | 'photo-slide') {
     if (exporting || rendering) return;
+    if (output === 'photos' || output === 'photo-slide') {
+      // Skip the busy state when images are prepared so the share call stays inside the tap.
+      if (!prepared) setExporting(true);
+      try { await saveToPhotos(output); }
+      catch (error) { setToast(error instanceof Error ? error.message : 'Sharing failed.'); }
+      finally { setExporting(false); }
+      return;
+    }
     setExporting(true);
     try {
       if (output === 'package' && result && !packageIssue) {
@@ -228,9 +256,13 @@ export default function App() {
     else setPage(index);
   }
 
+  // Prepared share images go stale as soon as the design or format changes.
+  useEffect(() => { setPrepared(null); }, [project, exportType]);
+
   const exportOptions = <ExportOptions project={project} days={days} daily={daily} previewDay={isDaily ? dailyDay : undefined} previewUrl={previewUrl}
     width={dims.width} height={dims.height} slides={previewPages?.length || 0} page={currentPage}
     type={exportType} onType={setExportType} exporting={exporting} weeklyDisabled={weeklyDisabled} slideDisabled={slideDisabled} packageIssue={packageIssue}
+    canShare={canShare} sharePrepared={prepared?.key.split('|')[0] as 'photos' | 'photo-slide' | undefined}
     onDownload={output => void performExport(output)} onCaption={() => void copyCaption(isDaily ? dailyDay : undefined)}/>;
 
   return <div className="app-shell">
@@ -299,7 +331,7 @@ export default function App() {
 
         </div><div className="export-footer"><Button className="primary export-main" disabled={weeklyDisabled && (!isDaily || dailyDisabled)} onClick={() => setModal('export')}><Download size={17}/>Export your design<ArrowUpRight size={17}/></Button><button className="caption-button" disabled={!selected.length} onClick={() => void copyCaption()}><Copy size={13}/>Copy Instagram caption</button><div className="privacy-note"><Laptop size={12}/>Your work stays on your device.</div></div></section>
         {compact && <section className="panel mobile-export-panel" {...panelProps('export','Export design')}>
-          <div className="panel-heading"><div><span className="step">04</span><h2>Export</h2></div><span className="export-readiness">{rendering ? 'Updating…' : packageIssue ? 'Needs a quick check' : 'Ready to download'}</span></div>
+          <div className="panel-heading"><div><span className="step">04</span><h2>Export</h2></div><span className="export-readiness">{rendering ? 'Updating…' : !selected.length ? 'No events yet' : packageIssue ? 'Needs a quick check' : 'Ready to download'}</span></div>
           <div className="mobile-export-scroll">
             {!selected.length ? <div className="empty-state"><Download size={28}/><h3>Your design starts with events</h3><p>Choose events, adjust the design, then download your image here.</p><Button className="primary" onClick={() => setMobileTab('events')}>Choose events</Button></div> : <>
               {exportOptions}

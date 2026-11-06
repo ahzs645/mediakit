@@ -132,7 +132,7 @@ test('mobile exports images, archives, and project backups without opening anoth
   await expect(page.locator('.slide-position')).toContainText('Event · Slide 2');
   await tab(page, 'Export').tap();
   const packageDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Download weekly + daily package', exact: true }).tap();
+  await page.getByRole('button', { name: 'Download everything as ZIP', exact: true }).tap();
   const mediaPackage = await JSZip.loadAsync(await fs.readFile((await (await packageDownload).path())!));
   expect(mediaPackage.file('weekly/caption.txt')).toBeTruthy();
   expect(mediaPackage.file('daily/2026-10-19/01-cover.png')).toBeTruthy();
@@ -213,4 +213,31 @@ test('Teams hiding defaults on, persists, and excludes suggestions while keeping
   await hide.check(); await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').hideTeams)).toBe(true);
   await page.screenshot({ path: 'docs/mobile-teams-filter.png' });
   await page.setViewportSize({ width: 1440, height: 1000 }); await expect(hide).toBeChecked(); await expect(hide).toBeVisible();
+});
+
+test('Save to Photos hands full-size PNGs to the share sheet, with a second tap when Safari blocks it', async ({ page }) => {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __shared: { name: string; type: string; size: number }[][]; __blockNext: boolean };
+    w.__shared = []; w.__blockNext = true;
+    Object.defineProperty(navigator, 'canShare', { configurable: true, value: (data: { files?: File[] }) => !!data.files?.length });
+    Object.defineProperty(navigator, 'share', { configurable: true, value: async (data: { files: File[] }) => {
+      // Mimic Safari refusing a share that is no longer inside the original tap.
+      if (w.__blockNext) { w.__blockNext = false; throw new DOMException('Not allowed', 'NotAllowedError'); }
+      w.__shared.push(data.files.map(file => ({ name: file.name, type: file.type, size: file.size })));
+    } });
+  });
+  await page.setViewportSize({ width: 390, height: 844 }); await setup(page);
+  await page.getByRole('button', { name: 'Add suggestions', exact: true }).tap();
+  await tab(page, 'Export').tap(); await ready(page);
+  await page.getByRole('button', { name: 'Save all images to Photos', exact: true }).tap();
+  await page.getByRole('button', { name: 'Open share sheet', exact: true }).tap();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[] }).__shared.length)).toBe(1);
+  const [files] = await page.evaluate(() => (window as unknown as { __shared: { name: string; type: string; size: number }[][] }).__shared);
+  // One weekly slide plus a cover and one event slide for each of the five days.
+  expect(files).toHaveLength(11);
+  expect(files.every(file => file.type === 'image/png' && file.size > 10000)).toBe(true);
+  expect(files[1].name).toBe('ote-daily-2026-10-19-01-cover.png');
+  await expect(page.getByRole('button', { name: 'Save all images to Photos', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Save current slide (1) to Photos', exact: true }).tap();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[][] }).__shared.at(-1)?.length)).toBe(1);
 });
