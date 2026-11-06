@@ -119,6 +119,8 @@ export async function renderProject(project: Project): Promise<RenderResult> {
     const x = frame.x, y = bodyTop+i*(flexibleHeight+gap), w = frame.width, h = flexibleHeight;
     const badge = baseDesign.badges[i] || baseDesign.badges[0];
     const left = Math.max(x+14*multiplier,badge.x+badge.width+10*multiplier), right = x + w - 14 * multiplier;
+    // Text starts 5 units inside the frame (first baseline at +19); keep 11 below the last line for descenders and breathing room.
+    const available = h - 16 * multiplier, entryGap = 11 * multiplier * project.textScale;
     const contentWidth = right - left;
     const entries = events.filter(e => eventOnDay(e,day,project.timezone)).map(event => {
       const edit = project.edits[event.id] || {};
@@ -133,19 +135,20 @@ export async function renderProject(project: Project): Promise<RenderResult> {
       const visibleText = [...titleLines,...detailLines,...summaryLines].join('');
       if ([...visibleText].some(character => !fonts.sans.hasChar(character) && character !== ' ')) warnings.push(`“${title}” contains a symbol the export font cannot draw. Replace it in the event editor.`);
       const height = (titleLines.length*14+detailLines.length*11+summaryLines.length*11+11)*multiplier*project.textScale;
-      if (height > h-20*multiplier) warnings.push(`“${title}” is too long for one day box. Shorten it, hide a field, or reduce the text size.`);
+      if (height - entryGap > available) warnings.push(`“${title}” is too long for one day box. Shorten it, hide a field, or reduce the text size.`);
       return {event,day,titleLines,detailLines,summaryLines,height};
     });
     const chunks: PlacedEvent[][] = [[]]; let used=0;
     for (const entry of entries) {
-      if (used+entry.height > h-20*multiplier && chunks.at(-1)!.length) { chunks.push([]); used=0; }
+      // The gap after an entry only matters when another entry follows it.
+      if (used+entry.height-entryGap > available && chunks.at(-1)!.length) { chunks.push([]); used=0; }
       chunks.at(-1)!.push(entry); used+=entry.height;
     }
-    return {day,x,y,w,h,left,right,chunks,entries,frame,badge};
+    return {day,x,y,w,h,left,right,chunks,entries,frame,badge,available,entryGap};
   });
   const pageCount = Math.max(1,...rows.map(r=>r.chunks.length));
   if (pageCount > 10) warnings.push('This selection needs more than 10 slides. Choose fewer events for a readable set.');
-  const capacity: DayCapacity[] = rows.map(row=>({day:row.day,events:row.entries.length,slides:row.chunks.length,used:row.chunks[0].reduce((sum,e)=>sum+e.height,0),available:row.h-20*multiplier,typicalLimit:Math.max(1,Math.floor((row.h-20*multiplier)/(36*multiplier*project.textScale)))}));
+  const capacity: DayCapacity[] = rows.map(row=>({day:row.day,events:row.entries.length,slides:row.chunks.length,used:Math.max(0,row.chunks[0].reduce((sum,e)=>sum+e.height,0)-row.entryGap),available:row.available,typicalLimit:Math.max(1,Math.floor((row.available+row.entryGap)/(36*multiplier*project.textScale)))}));
   const [month, year] = dateStamp(days.length ? days : daysFor(project.week,project.layout));
   const pages = Array.from({ length: pageCount }, (_, page) => {
     let content = '';

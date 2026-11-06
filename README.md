@@ -14,6 +14,8 @@ The workflow in `.github/workflows/deploy-pages.yml` runs unit/layout tests and 
 
 `VITE_BASE_PATH` sets the repository subdirectory for published assets, fonts, artwork, and the service worker. Local development keeps its relative base. Offline caches are scoped to the app path, so other GitHub Pages projects on the same account do not replace this app’s cache.
 
+**Updates:** each build publishes `version.json` next to the app. The app checks it when it opens, whenever it returns to the foreground, and every 30 minutes. If a newer build is deployed, a banner offers **Update**, which installs the new offline files and reloads; edits are kept. **⋯ → Check for updates** shows the running version (linked to its GitHub commit) and checks on demand. `version.json` is never cached by the service worker, and page loads always revalidate, so a reload cannot show an older release.
+
 The hosted app still keeps edits and project data in your browser. Use **Save project → Open project** to move an existing localhost project to the hosted app; browsers store them as separate origins.
 
 ## Run locally
