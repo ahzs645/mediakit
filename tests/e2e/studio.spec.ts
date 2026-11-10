@@ -31,6 +31,9 @@ test('select, edit, simplify, refresh, and restore a saved project',async({page}
   await page.waitForTimeout(400);await page.reload();await expect(page.getByRole('heading',{name:'Coffee with campus'})).toBeVisible();
   const dl=page.waitForEvent('download');await page.getByRole('button',{name:'Save project'}).click();const file=await dl;const path=await file.path();const saved=JSON.parse(await fs.readFile(path!,'utf8'));expect(saved.edits['ote:19-0'].title).toBe('Coffee with campus');
   await page.getByRole('button',{name:'Clear',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('0');
+  // Clearing is one tap, so it offers Undo; then clear again to test restoring from the backup.
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('5');
+  await page.getByRole('button',{name:'Clear',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('0');
   await page.getByLabel('Import project file').setInputFiles(path!);await expect(page.locator('.selected-filter')).toContainText('5');
 });
 
@@ -38,7 +41,7 @@ test('exports full-resolution PNG, JPEG, portable SVG, and a ZIP with caption',a
   await setup(page);await pick(page);await page.getByRole('button',{name:'Sage palette',exact:true}).click();await ready(page);
   await page.getByRole('button',{name:'Export your design'}).click();
   for(const format of ['png','jpeg','svg']){
-    await page.getByLabel('File format').selectOption(format);const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download current slide'}).click();const dl=await next;const buffer=await fs.readFile((await dl.path())!);
+    await page.getByLabel('File format').selectOption(format);const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download weekly slide 1',exact:true}).click();const dl=await next;const buffer=await fs.readFile((await dl.path())!);
     if(format==='svg'){expect(buffer.toString()).toContain('<path');expect(buffer.toString()).not.toContain('<text');expect(/__PAPER__|__ACCENT__|__INK__|\bd="[^"]*(?:NaN|Infinity)/.test(buffer.toString())).toBe(false);}
     const image=sharp(buffer);const meta=await image.metadata();expect(meta.width).toBe(1080);expect(meta.height).toBe(1350);
     const pixels=await image.removeAlpha().raw().toBuffer();for(const [i,value]of [227,239,207].entries())expect(Math.abs(pixels[i]-value)).toBeLessThan(15); // Edge watermark tints the paper; JPEG also introduces rounding.
@@ -111,7 +114,7 @@ test('long edits block export until corrected, cancelled events cannot be select
 test('weekend, story, original, custom colours, and manual events work',async({page})=>{
   await setup(page);await page.getByRole('button',{name:'Weekend',exact:true}).click();await expect(page.getByRole('heading',{name:'Campus event 24.1'})).toBeVisible();await expect(page.getByRole('heading',{name:'Campus event 19.1'})).toHaveCount(0);await pick(page);await expect(page.locator('.selected-filter')).toContainText('2');
   await page.getByRole('button',{name:'Story 9:16'}).click();await ready(page);await expect(page.locator('.preview-meta')).toContainText('1080 × 1920');
-  await page.getByRole('button',{name:'Original Figma'}).click();await ready(page);await expect(page.locator('.preview-meta')).toContainText('964 × 1302');
+  await page.getByRole('button',{name:'Original Artwork'}).click();await ready(page);await expect(page.locator('.preview-meta')).toContainText('964 × 1302');
   await page.getByRole('button',{name:'Custom palette',exact:true}).click();await page.getByLabel('Custom paper color').fill('#faeada');await ready(page);
   await page.getByRole('button',{name:'Add a custom event'}).click();const dialog=page.getByRole('dialog');await dialog.getByRole('textbox',{name:'Event title',exact:true}).fill('My campus event');await dialog.getByLabel('Start date').fill('2026-10-24');await dialog.getByLabel('End date').fill('2026-10-25');await dialog.getByLabel('All-day event').check();await dialog.getByRole('button',{name:'Add to design'}).click();await expect(page.getByRole('heading',{name:'My campus event'})).toHaveCount(2);
 });
@@ -130,7 +133,7 @@ test('mobile layout has no horizontal overflow and supports the complete flow',a
 test('live UNBC API loads every page through actual browser CORS and exports',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));const pages:number[]=[];page.on('response',async response=>{if(response.url().includes('/wp-json/unbc-events/v1/events/')){const data=await response.json().catch(()=>null);if(data?.pagination?.currentPage)pages.push(data.pagination.currentPage);}});
   await page.clock.setFixedTime(new Date('2026-10-22T20:00:00Z'));await page.goto('/');await expect(page.getByText('Connected to live calendar')).toBeVisible({timeout:50000});expect(pages).toContain(2);expect(await page.locator('.event-card').count()).toBeGreaterThan(50);await pick(page);
-  await page.getByRole('button',{name:'Export your design'}).click();const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download current slide'}).click();const dl=await next;const buffer=await fs.readFile((await dl.path())!);expect((await sharp(buffer).metadata()).width).toBe(1080);expect(errors).toEqual([]);await page.getByRole('button',{name:'Close dialog'}).click();await page.screenshot({path:'test-results/live-studio.png',fullPage:true});
+  await page.getByRole('button',{name:'Export your design'}).click();const next=page.waitForEvent('download');await page.getByRole('button',{name:'Download weekly slide 1',exact:true}).click();const dl=await next;const buffer=await fs.readFile((await dl.path())!);expect((await sharp(buffer).metadata()).width).toBe(1080);expect(errors).toEqual([]);await page.getByRole('button',{name:'Close dialog'}).click();await page.screenshot({path:'test-results/live-studio.png',fullPage:true});
 });
 
 test('date selection, sources, labels, field switches, and capacity reflow stay in sync',async({page})=>{
@@ -156,7 +159,7 @@ test('preview keeps its export ratio at desktop, narrow, and mobile widths',asyn
     for(const [format,ratio]of [['portrait',1080/1350],['story',1080/1920],['original',964/1302]] as const){
       // Change format through the app, including the separate mobile Design tab.
       if(width===390)await page.getByRole('tab',{name:'Design',exact:true}).click();
-      await page.getByRole('button',{name:format==='portrait'?'Post 4:5':format==='story'?'Story 9:16':'Original Figma',exact:true}).click();
+      await page.getByRole('button',{name:format==='portrait'?'Post 4:5':format==='story'?'Story 9:16':'Original Artwork',exact:true}).click();
       if(width===390)await page.getByRole('tab',{name:'Preview',exact:true}).click();
       await ready(page);
       const rect=await page.locator('.artboard').boundingBox();expect(rect!.width/rect!.height).toBeCloseTo(ratio,2);
@@ -193,6 +196,8 @@ test('browser PNGs retain watermark edges, paper texture, and margins in every c
 
 test('spacing controls save and local fonts stay out of project backups',async({page})=>{
   await setup(page);await pick(page);
+  // Spacing is an advanced section, collapsed until opened.
+  await expect(page.getByRole('slider',{name:'Heading position',exact:true})).toBeHidden();await page.getByText('Spacing & date badges',{exact:true}).click();
   await page.getByRole('slider',{name:'Heading position',exact:true}).press('Home');
   await page.getByRole('slider',{name:'Month badge position',exact:true}).press('End');
   await page.getByRole('slider',{name:'Day badge height',exact:true}).press('End');await ready(page);
@@ -204,7 +209,8 @@ test('spacing controls save and local fonts stay out of project backups',async({
   await page.waitForTimeout(400);await page.reload();await expect(page.locator('.local-font-control')).toContainText('Kalam');
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();const saved=JSON.parse(await fs.readFile((await(await download).path())!,'utf8'));
   expect(saved).toMatchObject({headingOffset:-2,stampOffset:1,badgeHeight:1.5});expect(saved).not.toHaveProperty('dateFont');expect(JSON.stringify(saved)).not.toContain('base64');
-  await page.getByRole('button',{name:'Remove font',exact:true}).click();await expect(page.locator('.local-font-control')).toContainText('Original artwork');
+  await page.getByRole('button',{name:'Remove font',exact:true}).click();await expect(page.locator('.local-font-control')).toContainText('Original lettering');
+  await page.getByText('Spacing & date badges',{exact:true}).click();
   await page.getByRole('button',{name:'Reset spacing',exact:true}).click();await expect(page.getByRole('slider',{name:'Day badge height',exact:true})).toHaveValue('1.2');
 });
 

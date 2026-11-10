@@ -54,7 +54,7 @@ for (const viewport of [{ width: 320, height: 568 }, { width: 360, height: 740 }
     const artboard = await page.locator('.artboard').boundingBox();
     expect(artboard!.width / artboard!.height).toBeCloseTo(1080 / 1920, 2);
     await tab(page, 'Export').tap();
-    await expect(page.getByRole('button', { name: 'Download current slide (1)', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Download weekly slide 1', exact: true })).toBeEnabled();
     for (const name of ['Events', 'Design', 'Preview', 'Export']) {
       const bounds = (await tab(page, name).boundingBox())!;
       expect(bounds.height).toBeGreaterThanOrEqual(44);
@@ -121,7 +121,7 @@ test('mobile exports images, archives, and project backups without opening anoth
   await page.getByRole('button', { name: 'Add suggestions', exact: true }).tap();
   await tab(page, 'Design').tap(); await page.getByRole('button', { name: 'Weekly list', exact: false }).tap();
   await tab(page, 'Export').tap(); await ready(page);
-  const image = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download current slide (1)', exact: true }).tap();
+  const image = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download weekly slide 1', exact: true }).tap();
   expect(await sharp(await fs.readFile((await (await image).path())!)).metadata()).toMatchObject({ width: 1080, height: 1920 });
   const archive = page.waitForEvent('download'); await page.getByRole('button', { name: 'Download weekly slides + caption', exact: true }).tap();
   const zip = await JSZip.loadAsync(await fs.readFile((await (await archive).path())!)); expect(zip.file('caption.txt')).toBeTruthy();
@@ -185,15 +185,16 @@ test('one-row mobile dropdowns navigate weeks and all schedule ranges', async ({
 test('Teams hiding defaults on, persists, and excludes suggestions while keeping selected events', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await setup(page, true);
   await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
-  await expect(page.locator('.event-card')).toHaveCount(2); await expect(page.locator('.teams-filter-status')).toContainText('4 Teams events hidden');
-  await expect(page.locator('.teams-filter-status')).toBeHidden();
+  await expect(page.locator('.event-card')).toHaveCount(2); 
+  await expect(page.locator('.teams-filter')).toBeHidden();
   await page.getByRole('button', { name: /^Filters/ }).tap();
-  await expect(page.locator('.teams-filter-status')).toBeVisible();
+  await expect(page.locator('.teams-filter')).toContainText('4 hidden');
+  await expect(page.locator('.teams-filter-status')).toHaveCount(0);
   const hide = page.getByRole('checkbox', { name: 'Hide Microsoft Teams events', exact: true }); await expect(hide).toBeChecked();
   await hide.uncheck(); await expect(page.locator('.event-card')).toHaveCount(5);
   await page.getByRole('checkbox', { name: 'Select Campus gathering 19.1', exact: true }).check();
   await hide.check(); await expect(page.locator('.event-card')).toHaveCount(2); await expect(page.locator('.selected-filter')).toContainText('1');
-  await expect(page.locator('.teams-filter-status')).toContainText('1 already selected and kept in your design');
+  await expect(page.locator('.teams-filter-status')).toContainText('1 selected Teams event stays in your design');
   await page.getByRole('button', { name: /^Filters/ }).tap();
   await page.getByRole('button', { name: 'Add suggestions', exact: true }).tap(); await ready(page);
   await expect(page.locator('.selected-filter')).toContainText('2');
@@ -206,7 +207,7 @@ test('Teams hiding defaults on, persists, and excludes suggestions while keeping
   });
   expect(exportedIds).toEqual(['ote:0', 'ote:4']);
   await tab(page, 'Events').tap(); await page.getByRole('button', { name: /^Filters/ }).tap();
-  await page.getByRole('button', { name: 'Show Teams events', exact: true }).tap();
+  await hide.uncheck();
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('ote-media-studio-v1') || '{}').hideTeams)).toBe(false);
   await page.reload(); await page.getByRole('button', { name: /^Filters/ }).tap(); await expect(hide).not.toBeChecked();
   await expect(page.locator('.selected-filter')).toContainText('2');
@@ -238,7 +239,7 @@ test('Save to Photos hands full-size PNGs to the share sheet, with a second tap 
   expect(files.every(file => file.type === 'image/png' && file.size > 10000)).toBe(true);
   expect(files[1].name).toBe('ote-daily-2026-10-19-01-cover.png');
   await expect(page.getByRole('button', { name: 'Save all images to Photos', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Save current slide (1) to Photos', exact: true }).tap();
+  await page.getByRole('button', { name: 'Save weekly slide 1 to Photos', exact: true }).tap();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[][] }).__shared.at(-1)?.length)).toBe(1);
 });
 
