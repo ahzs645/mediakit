@@ -19,6 +19,8 @@ export interface Project {
   dailyShowTime: boolean; dailyShowDescription: boolean;
   headingOffset: number; stampOffset: number; badgeHeight: number;
   hideTeams: boolean;
+  /** Daily Story paper sheet: a palette-matched tint, or plain white. */
+  dailyPaper: 'tinted' | 'white';
 }
 export const DEFAULT_SOURCE: Source = { id: 'ote', name: 'Over the Edge', url: 'https://overtheedge.unbc.ca/wp-json/unbc-events/v1/events/', provider: 'unbc' };
 export const PALETTES: Record<string, Palette> = {

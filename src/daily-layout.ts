@@ -32,20 +32,26 @@ const luminance = (hex: string) => rgb(hex).reduce((sum, channel, i) => {
   return sum + [.2126, .7152, .0722][i] * (c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
 }, 0);
 
+export const WHITE_PAPER = '#FFFDF9';
+const darkInk = '#262626';
+
 /** The taped paper sheet must read as a separate object on every background, including custom palettes. */
-export function dailyPaperTone(paletteKey: string, palette: Palette): { fill: string; dark: boolean } {
+export function dailyPaperTone(paletteKey: string, palette: Palette, style: Project['dailyPaper'] = 'tinted'): { fill: string; dark: boolean; ink: string } {
+  // A white sheet always takes dark text, even when the palette's text colour is light.
+  if (style === 'white') return { fill: WHITE_PAPER, dark: false, ink: luminance(palette.ink) > .4 ? darkInk : palette.ink };
   // The original artwork places sage paper on the cream background.
-  if (paletteKey === 'cream') return { fill: PALETTES.sage.paper, dark: false };
+  if (paletteKey === 'cream') return { fill: PALETTES.sage.paper, dark: false, ink: palette.ink };
   const dark = luminance(palette.paper) < .22;
   // Light backgrounds take a deeper tint of their accent, like the original sage-on-cream sheet.
   // Dark backgrounds take a lighter tone toward the text colour so light text stays readable.
-  return { fill: dark ? mix(palette.paper, palette.ink, .14) : mix(palette.paper, palette.accent, .16), dark };
+  return { fill: dark ? mix(palette.paper, palette.ink, .14) : mix(palette.paper, palette.accent, .16), dark, ink: palette.ink };
 }
 
 export function renderDaily(project: Project, fonts: Fonts, events: CalendarEvent[], days: string[], lettering?: opentype.Font): DailyDay[] {
   const { width: w, height: h } = DAILY_SIZE;
   const palette = project.palette === 'custom' ? project.customPalette : PALETTES[project.palette];
-  const paperTone = dailyPaperTone(project.palette, palette);
+  const paperTone = dailyPaperTone(project.palette, palette, project.dailyPaper);
+  const sheetInk = paperTone.ink;
   const textScale = project.textScale;
   const dateLabel = (day: string) => readableDay(day, { month: 'long', year: 'numeric' }).toUpperCase();
   const coverFont = fontForText(lettering, fonts.hand, coverLines.join(' '));
@@ -72,8 +78,8 @@ export function renderDaily(project: Project, fonts: Fonts, events: CalendarEven
     if (!items.length) return [];
     const total = items.length + 1, date = dateLabel(day), warnings: string[] = [];
     const dateFont = fontForText(lettering, fonts.bold, date);
-    const dateMark = (x: number, y: number, size: number, maxWidth: number, center = false) =>
-      `<g data-layer="date" aria-label="${escape(date)}">${textPath(dateFont, date, x, y, size, palette.ink, maxWidth, center)}</g>`;
+    const dateMark = (x: number, y: number, size: number, maxWidth: number, center = false, ink = palette.ink) =>
+      `<g data-layer="date" aria-label="${escape(date)}">${textPath(dateFont, date, x, y, size, ink, maxWidth, center)}</g>`;
     const cover = `<path data-layer="border" d="${coverBorder}" fill="none" stroke="${palette.accent}" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>`
       + dateMark(w / 2, 630, 37, 750, true)
       + `<g data-layer="heading">${coverHeading}</g>`
@@ -122,7 +128,7 @@ export function renderDaily(project: Project, fonts: Fonts, events: CalendarEven
           + `</g>${titleTape}</g>`;
       }
       let y = Math.max(650, titleLines.length ? titleBottom + 68 : 0);
-      content += dateMark(bodyX, y, 34, bodyWidth);
+      content += dateMark(bodyX, y, 34, bodyWidth, false, sheetInk);
       const detailSize = 35 * textScale, detailLeading = detailSize * 1.22;
       const detailLines = wrap(fonts.sans, details, detailSize, bodyWidth);
       let bodySize = Math.round(39 * textScale), bodyLines = wrap(fonts.sans, description, bodySize, bodyWidth);
@@ -135,15 +141,15 @@ export function renderDaily(project: Project, fonts: Fonts, events: CalendarEven
       content += `<defs><clipPath id="daily-content"><rect x="${bodyX - 5}" y="${y + 6}" width="${bodyWidth + 10}" height="${bodyBottom - y}"/></clipPath></defs><g clip-path="url(#daily-content)">`;
       for (const line of detailLines.slice(0, Math.floor((bodyBottom - y) / detailLeading))) {
         y += detailLeading;
-        content += textPath(fonts.sans, line, bodyX, y, detailSize, palette.ink, bodyWidth);
+        content += textPath(fonts.sans, line, bodyX, y, detailSize, sheetInk, bodyWidth);
       }
       if (bodyLines.length) {
-        content += `<path d="M${bodyX} ${y + 27}h${bodyWidth}" stroke="${palette.ink}" stroke-width="2" stroke-dasharray="8 8"/>`;
+        content += `<path d="M${bodyX} ${y + 27}h${bodyWidth}" stroke="${sheetInk}" stroke-width="2" stroke-dasharray="8 8"/>`;
         bodyLines.slice(0, Math.max(0, Math.floor((bodyBottom - bodyTop) / (bodySize * 1.28)))).forEach((line, i) => {
-          content += textPath(fonts.sans, line, bodyX, bodyTop + i * bodySize * 1.28, bodySize, palette.ink, bodyWidth);
+          content += textPath(fonts.sans, line, bodyX, bodyTop + i * bodySize * 1.28, bodySize, sheetInk, bodyWidth);
         });
       }
-      content += `</g><path d="M${bodyX} 1530h${bodyWidth}" stroke="${palette.ink}" stroke-width="2" stroke-dasharray="8 8"/>`;
+      content += `</g><path d="M${bodyX} 1530h${bodyWidth}" stroke="${sheetInk}" stroke-width="2" stroke-dasharray="8 8"/>`;
       pages.push({ ...DAILY_SIZE, svg: svg(`${title || 'Daily event'} · ${date}`, `<g data-event-id="${escape(event.id)}">${content}</g>`), number: index + 2, total, eventCount: 1 });
     });
     return [{ day, events: items, pages, warnings: [...new Set(warnings)] }];

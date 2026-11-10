@@ -256,12 +256,22 @@ test('palette swatches under the mobile preview recolour the Daily Story live', 
   await expect(colours.getByRole('button', { name: 'Forest palette', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.schedule-image')).not.toHaveAttribute('src', before!);
   await expect(page.getByText('Event · Slide 2 / 2')).toBeVisible();
+  const tinted = await page.locator('.schedule-image').getAttribute('src');
+  await colours.getByRole('button', { name: 'White paper', exact: true }).tap(); await ready(page);
+  await expect(colours.getByRole('button', { name: 'White paper', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.schedule-image')).not.toHaveAttribute('src', tinted!);
+  // Output, date, and zoom share the preview space instead of separate heading rows.
+  const output = (await page.getByRole('button', { name: 'Daily Stories', exact: true }).boundingBox())!;
+  const date = (await page.getByLabel('Daily Story date').boundingBox())!;
+  expect(Math.abs(output.y - date.y)).toBeLessThan(6);
+  await expect(page.getByRole('button', { name: 'Enlarge preview', exact: true })).toBeVisible();
   await colours.getByRole('button', { name: 'Custom palette', exact: true }).tap();
   await expect(colours.getByLabel('Custom paper color')).toBeVisible();
   for (const swatch of await colours.getByRole('button').all()) expect((await swatch.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await tab(page, 'Design').tap();
   await expect(page.getByRole('button', { name: 'Custom palette', exact: true })).toHaveAttribute('class', /active/);
+  await expect(page.getByRole('group', { name: 'Daily paper sheet' }).getByRole('button', { name: 'White paper', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await tab(page, 'Preview').tap(); await colours.getByRole('button', { name: 'Sage palette', exact: true }).tap(); await ready(page);
   await page.screenshot({ path: 'docs/mobile-preview-colours.png' });
 });

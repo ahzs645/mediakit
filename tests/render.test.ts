@@ -2,7 +2,7 @@ import { describe,it,expect,vi,beforeAll,afterAll } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { basename,join } from 'node:path';
 import { caption, renderDailyProject, renderProject, visibleDays } from '../src/render';
-import { newProject } from '../src/storage';
+import { newProject, parseProject } from '../src/storage';
 import { dailyPaperTone } from '../src/daily-layout';
 import { PALETTES } from '../src/types';
 import type { CalendarEvent } from '../src/types';
@@ -110,6 +110,20 @@ describe('daily Story layout', () => {
       expect(svg).toContain('data-layer="paper-shadow"');
       expect(svg).toContain('filter="url(#daily-texture)"');
       expect(svg.includes('daily-texture-light'), key).toBe(dailyPaperTone(key, key === 'custom' ? custom : PALETTES[key]).dark);
+      const white = (await renderDailyProject({ ...project, dailyPaper: 'white' }))[0].pages[1].svg;
+      expect(white).toMatch(/data-layer="paper"[^>]*><rect[^>]*fill="#FFFDF9"/);
+      expect(white).not.toContain('daily-texture-light');
     }
+    // Light palette text switches to dark ink on a white sheet.
+    expect(dailyPaperTone('forest', PALETTES.forest, 'white').ink).toBe('#262626');
+    expect(dailyPaperTone('rose', PALETTES.rose, 'white').ink).toBe(PALETTES.rose.ink);
+  });
+
+  it('keeps the paper sheet choice in saved projects and defaults older ones to tinted', () => {
+    const saved = JSON.parse(JSON.stringify({ ...newProject(), dailyPaper: 'white' }));
+    expect(parseProject(saved).dailyPaper).toBe('white');
+    const { dailyPaper: _, ...older } = saved;
+    expect(parseProject(older).dailyPaper).toBe('tinted');
+    expect(() => parseProject({ ...saved, dailyPaper: 'gold' })).toThrow();
   });
 });

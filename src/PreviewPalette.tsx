@@ -4,8 +4,19 @@ import { PALETTES } from './types';
 
 const customLabels: Record<keyof Palette, string> = { name: '', paper: 'Background', ink: 'Text', accent: 'Accent', badgeInk: 'Labels' };
 
+type Update = (patch: Partial<Project>) => void;
+
+/** Daily Story paper sheet: palette-matched tint or plain white. */
+export function PaperSheetSwitch({ project, update }: { project: Project; update: Update }) {
+  return <div className="paper-sheet-switch" role="group" aria-label="Daily paper sheet">
+    {(['tinted', 'white'] as const).map(style => <button key={style} type="button" aria-pressed={project.dailyPaper === style} aria-label={`${style === 'white' ? 'White' : 'Tinted'} paper`} onClick={() => update({ dailyPaper: style })}>
+      <span className={`paper-sheet-sample ${style}`}/>{style === 'white' ? 'White' : 'Tinted'}
+    </button>)}
+  </div>;
+}
+
 /** A compact palette strip shown under the mobile preview, so colour changes are visible as they are made. */
-export function PreviewPalette({ project, update }: { project: Project; update: (patch: Partial<Project>) => void }) {
+export function PreviewPalette({ project, update, daily }: { project: Project; update: Update; daily: boolean }) {
   return <div className="preview-palette" role="group" aria-label="Preview colours">
     <div className="preview-palette-row">
       <span className="preview-palette-label">Colours</span>
@@ -16,6 +27,7 @@ export function PreviewPalette({ project, update }: { project: Project; update: 
         <span style={project.palette === 'custom' ? { background: project.customPalette.paper } : undefined}>{project.palette === 'custom' ? <><span style={{ background: project.customPalette.accent }}/><Check className="preview-swatch-check" size={11}/></> : <Plus size={14}/>}</span>
       </button>
     </div>
+    {daily && <div className="preview-paper-row"><span className="preview-palette-label">Paper</span><PaperSheetSwitch project={project} update={update}/></div>}
     {project.palette === 'custom' && <div className="preview-custom-colors">
       {(['paper', 'ink', 'accent', 'badgeInk'] as const).map(key => <label key={key}>
         <input type="color" value={project.customPalette[key]} aria-label={`Custom ${key} color`} onChange={e => update({ customPalette: { ...project.customPalette, [key]: e.target.value } })}/>

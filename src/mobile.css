@@ -360,3 +360,32 @@
 .preview-custom-colors input { width: 30px; height: 22px; flex-shrink: 0; padding: 0; border: 0; background: none; }
 .preview-custom-colors span { max-width: 100%; font-size: 10px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 359px) { .preview-palette-label { display: none; } }
+
+/* Daily paper sheet choice, shared by the Design panel and the mobile preview. */
+.paper-sheet-switch { display: inline-flex; gap: 3px; padding: 3px; border: 1px solid #dce5d4; border-radius: 8px; background: #f4f7ef; }
+.paper-sheet-switch > button { min-height: 28px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid transparent; border-radius: 5px; color: #49613e; font-size: 12.5px; font-weight: 600; }
+.paper-sheet-switch > button[aria-pressed=true] { border-color: #bfceb2; background: #fff; color: #25471e; }
+.paper-sheet-sample { width: 12px; height: 14px; border-radius: 2px; border: 1px solid #b9c6ad; transform: rotate(-4deg); }
+.paper-sheet-sample.tinted { background: linear-gradient(135deg, #e3efcf, #c8dbb0); }
+.paper-sheet-sample.white { background: #fffdf9; }
+.paper-sheet-control { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; font-size: 13px; color: #4f5f48; }
+
+/* Zoom sits on the preview itself instead of taking a heading row. */
+.preview-zoom { position: absolute; top: 8px; right: 8px; z-index: 2; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; border: 1px solid #dce5d4; background: #ffffffe6; color: #49613e; box-shadow: 0 1px 3px #3d4d3214; }
+.preview-zoom:disabled { opacity: .4; }
+.preview-zoom:focus-visible { outline: 2px solid #155329; outline-offset: 2px; }
+
+@media (max-width: 760px), (max-width: 1000px) and (max-height: 500px) {
+  /* The Preview tab already names this panel; output and date choices share one row. */
+  .preview-heading { display: none; }
+  .preview-output-controls { flex-wrap: nowrap; margin-top: 2px; }
+  .preview-output-switch { flex: 1 1 auto; min-width: 0; }
+  .preview-output-switch > button { flex: 1 1 0; padding: 0 8px; }
+  .daily-date-select { flex: 0 1 auto; min-width: 0; }
+  .preview-meta { display: none; }
+  .preview-zoom { width: 40px; height: 40px; top: 6px; right: 6px; }
+  .preview-paper-row { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 2px 0 6px; border: 1px solid #dce5d4; border-radius: 12px; background: #f8faf5; }
+  .preview-paper-row .paper-sheet-switch { padding: 0; border: 0; background: none; }
+  .preview-paper-row .paper-sheet-switch > button { min-height: 44px; padding: 0 12px; font-size: 13px; }
+  .preview-paper-row .paper-sheet-switch > button[aria-pressed=true] { background: #fff; }
+}
