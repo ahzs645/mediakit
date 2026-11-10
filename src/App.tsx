@@ -14,6 +14,7 @@ import { localDateFont, importDateFont, clearDateFont } from './date-font';
 import { WorkspaceTabs, useCompactScreen } from './WorkspaceTabs';
 import type { WorkspaceTab } from './WorkspaceTabs';
 import { ExportOptions } from './ExportOptions';
+import { PreviewPalette } from './PreviewPalette';
 import { APP_BUILD, useUpdateCheck } from './update';
 import { isTeamsEvent } from './event-filters';
 
@@ -309,6 +310,7 @@ export default function App() {
           <div className="canvas-workspace"><div className={`artboard ${rendering ? 'is-rendering' : ''}`} style={{ '--artboard-ratio': dims.width/dims.height } as CSSProperties}>{previewUrl && previewPage ? <img src={previewUrl} alt={`${previewTitle} preview, slide ${currentPage+1} of ${previewPages?.length || 1}`} className="schedule-image"/> : <div className="preview-loading">{rendering && <LoaderCircle size={26} className="spinning"/>}<span>{rendering ? 'Preparing your design' : isDaily && !previewError ? 'Select events to create Daily Stories' : 'Preview unavailable'}</span></div>}</div>{previewError && <div className="preview-error" role="alert">{previewError}</div>}
             {!selected.length && !rendering && <div className="preview-hint"><span><ArrowLeft size={14}/></span>{compact ? <button onClick={() => setMobileTab('events')}>Choose events for your design</button> : 'Select a few events to bring this to life'}</div>}
           </div>
+          {compact && <PreviewPalette project={project} update={update}/>}
           {previewPages && <div className="preview-pagination" aria-label="Preview slides"><button className="icon-button" aria-label="Previous slide" disabled={currentPage===0} onClick={() => goToPreviewPage(currentPage-1)}><ChevronLeft size={17}/></button><span className="slide-position">{isDaily ? (currentPage === 0 ? 'Cover' : 'Event') + ' · ' : ''}Slide {currentPage+1} / {previewPages.length}</span>{previewPages.length <= 10 && <div className="slide-dots">{previewPages.map((p,i) => <button key={i} className={currentPage===i ? 'active' : ''} aria-current={currentPage===i ? 'true' : undefined} aria-label={`Show slide ${i+1}`} onClick={() => goToPreviewPage(i)}><span>{p.number}</span></button>)}</div>}<button className="icon-button" aria-label="Next slide" disabled={currentPage===previewPages.length-1} onClick={() => goToPreviewPage(currentPage+1)}><ChevronRight size={17}/></button></div>}
           <div className="preview-meta"><span><Monitor size={13}/>{dims.width} × {dims.height} px</span><span>{isDaily ? `${dailyDay?.events.length ?? 0} event(s) on this date` : `${previewPages?.length || 1} slide${previewPages?.length===1?'':'s'} · ${selected.length} event${selected.length===1?'':'s'}`}</span></div>
           {!!previewWarnings?.length && <div className="layout-warnings" role="alert"><AlertTriangle size={16}/><div><strong>A quick layout check</strong>{previewWarnings.map(w => <p key={w}>{w}</p>)}</div></div>}

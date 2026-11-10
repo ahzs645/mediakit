@@ -241,3 +241,27 @@ test('Save to Photos hands full-size PNGs to the share sheet, with a second tap 
   await page.getByRole('button', { name: 'Save current slide (1) to Photos', exact: true }).tap();
   await expect.poll(() => page.evaluate(() => (window as unknown as { __shared: unknown[][] }).__shared.at(-1)?.length)).toBe(1);
 });
+
+test('palette swatches under the mobile preview recolour the Daily Story live', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await setup(page);
+  await page.getByRole('button', { name: 'Show 2026-10-19', exact: true }).tap();
+  await page.getByRole('checkbox', { name: 'Select Campus gathering 19.1', exact: true }).check();
+  await tab(page, 'Preview').tap();
+  await page.getByRole('button', { name: 'Daily Stories', exact: true }).tap();
+  await page.getByRole('button', { name: 'Next slide', exact: true }).tap(); await ready(page);
+  const colours = page.getByRole('group', { name: 'Preview colours' });
+  await expect(colours).toBeVisible();
+  const before = await page.locator('.schedule-image').getAttribute('src');
+  await colours.getByRole('button', { name: 'Forest palette', exact: true }).tap(); await ready(page);
+  await expect(colours.getByRole('button', { name: 'Forest palette', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.schedule-image')).not.toHaveAttribute('src', before!);
+  await expect(page.getByText('Event · Slide 2 / 2')).toBeVisible();
+  await colours.getByRole('button', { name: 'Custom palette', exact: true }).tap();
+  await expect(colours.getByLabel('Custom paper color')).toBeVisible();
+  for (const swatch of await colours.getByRole('button').all()) expect((await swatch.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await tab(page, 'Design').tap();
+  await expect(page.getByRole('button', { name: 'Custom palette', exact: true })).toHaveAttribute('class', /active/);
+  await tab(page, 'Preview').tap(); await colours.getByRole('button', { name: 'Sage palette', exact: true }).tap(); await ready(page);
+  await page.screenshot({ path: 'docs/mobile-preview-colours.png' });
+});

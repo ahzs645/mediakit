@@ -1,5 +1,5 @@
 import type * as opentype from 'opentype.js';
-import type { CalendarEvent, Project } from './types';
+import type { CalendarEvent, Palette, Project } from './types';
 import type { RenderedPage } from './render';
 import { PALETTES } from './types';
 import { eventOnDay, formatTime, readableDay } from './dates';
@@ -19,11 +19,33 @@ const paperTape = '<use href="#daily-tape" transform="matrix(-.4087 .17463 -.174
 // This strip is relative to the tilted title card so it stays on the corner as the title grows.
 const titleTape = '<use href="#daily-tape" transform="matrix(.17598 .30162 -.30376 .17723 74.91 -14.61)"/>';
 const coverLines = ['WHAT IS HAPPENING', 'IN PRINCE GEORGE', 'TODAY?'];
+const paperOutline = 'M239.04 492.81 972.01 531.74 910.91 1682.12 177.94 1643.19Z';
+
+const rgb = (hex: string) => {
+  const value = /^#?([\da-f]{6})$/i.exec(hex.trim())?.[1] ?? '808080';
+  return [0, 2, 4].map(i => parseInt(value.slice(i, i + 2), 16));
+};
+const mix = (from: string, to: string, amount: number) => '#' + rgb(from)
+  .map((channel, i) => Math.round(channel + (rgb(to)[i] - channel) * amount).toString(16).padStart(2, '0')).join('').toUpperCase();
+const luminance = (hex: string) => rgb(hex).reduce((sum, channel, i) => {
+  const c = channel / 255;
+  return sum + [.2126, .7152, .0722][i] * (c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4);
+}, 0);
+
+/** The taped paper sheet must read as a separate object on every background, including custom palettes. */
+export function dailyPaperTone(paletteKey: string, palette: Palette): { fill: string; dark: boolean } {
+  // The original artwork places sage paper on the cream background.
+  if (paletteKey === 'cream') return { fill: PALETTES.sage.paper, dark: false };
+  const dark = luminance(palette.paper) < .22;
+  // Light backgrounds take a deeper tint of their accent, like the original sage-on-cream sheet.
+  // Dark backgrounds take a lighter tone toward the text colour so light text stays readable.
+  return { fill: dark ? mix(palette.paper, palette.ink, .14) : mix(palette.paper, palette.accent, .16), dark };
+}
 
 export function renderDaily(project: Project, fonts: Fonts, events: CalendarEvent[], days: string[], lettering?: opentype.Font): DailyDay[] {
   const { width: w, height: h } = DAILY_SIZE;
   const palette = project.palette === 'custom' ? project.customPalette : PALETTES[project.palette];
-  const paperFill = project.palette === 'cream' ? PALETTES.sage.paper : palette.paper;
+  const paperTone = dailyPaperTone(project.palette, palette);
   const textScale = project.textScale;
   const dateLabel = (day: string) => readableDay(day, { month: 'long', year: 'numeric' }).toUpperCase();
   const coverFont = fontForText(lettering, fonts.hand, coverLines.join(' '));
@@ -34,7 +56,14 @@ export function renderDaily(project: Project, fonts: Fonts, events: CalendarEven
     watermark += `<use href="#daily-logo" transform="translate(${col * 640 + (row % 2 ? 310 : 0)} ${row * 230})"/>`;
   }
   watermark += '</g>';
-  const paper = `<defs><clipPath id="daily-paper"><path d="M239.04 492.81 972.01 531.74 910.91 1682.12 177.94 1643.19Z"/></clipPath><filter id="daily-texture"><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.2126 -.7152 -.0722 0 1"/></filter></defs><g clip-path="url(#daily-paper)"><rect x="175" y="450" width="805" height="1235" fill="${paperFill}"/><image href="${paperUrl}" x="175" y="450" width="805" height="1235" preserveAspectRatio="none" filter="url(#daily-texture)" opacity=".09"/></g>`;
+  // Crease shading darkens the sheet; dark sheets also get lifted highlights so the crumple stays visible.
+  const texture = (id: string, values: string, opacity: number) =>
+    `<filter id="${id}"><feColorMatrix values="${values}"/></filter><image href="${paperUrl}" x="175" y="450" width="805" height="1235" preserveAspectRatio="none" filter="url(#${id})" opacity="${opacity}"/>`;
+  const shade = texture('daily-texture', '0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  -.2126 -.7152 -.0722 0 1', paperTone.dark ? .2 : .11);
+  const highlight = paperTone.dark ? texture('daily-texture-light', '0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  .2126 .7152 .0722 0 -.35', .14) : '';
+  const paper = `<defs><clipPath id="daily-paper"><path d="${paperOutline}"/></clipPath><filter id="daily-paper-shadow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="14"/></filter></defs>`
+    + `<path data-layer="paper-shadow" d="${paperOutline}" transform="translate(10 16)" fill="#000" opacity="${paperTone.dark ? .4 : .2}" filter="url(#daily-paper-shadow)"/>`
+    + `<g data-layer="paper" clip-path="url(#daily-paper)"><rect x="175" y="450" width="805" height="1235" fill="${paperTone.fill}"/>${shade}${highlight}</g>`;
   const svg = (title: string, content: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img"><title>${escape(title)}</title><rect width="${w}" height="${h}" fill="${palette.paper}"/>${content}</svg>`;
   const bodyX = 265, bodyWidth = 600, bodyBottom = 1510;
 

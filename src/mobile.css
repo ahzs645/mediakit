@@ -343,3 +343,20 @@
   .events-footer .button svg { width: 14px; height: 14px; }
   .events-footer > .text-button { position: relative; min-height: 32px; padding: 0 6px; font-size: 13px; color: #5d6b55; }
 }
+
+/* Mobile preview colour strip: change the palette without leaving the preview. */
+.preview-palette { flex-shrink: 0; margin-top: 6px; display: grid; gap: 6px; }
+.preview-palette-row { display: flex; align-items: center; justify-content: space-between; gap: 2px; padding: 0 2px 0 6px; border: 1px solid #dce5d4; border-radius: 12px; background: #f8faf5; }
+.preview-palette-label { margin-right: auto; font-size: 11px; font-weight: 600; letter-spacing: .3px; text-transform: uppercase; color: #687862; }
+.preview-swatch { flex: 0 1 44px; min-width: 34px; height: 44px; padding: 0; display: grid; place-items: center; }
+.preview-swatch > span { position: relative; width: 30px; height: 30px; border-radius: 50%; border: 1px solid #cfd9c4; display: grid; place-items: center; overflow: hidden; color: #4d7339; }
+.preview-swatch > span > span { position: absolute; right: 0; bottom: 0; width: 50%; height: 50%; border-top-left-radius: 100%; }
+.preview-swatch-check { position: relative; padding: 1px; border-radius: 50%; background: #4d7339; color: #fff; }
+.preview-swatch[aria-pressed=true] > span { outline: 2px solid #4d7339; outline-offset: 2px; }
+.preview-swatch.custom > span { background: #fff; border-style: dashed; }
+.preview-swatch:focus-visible { outline: 2px solid #155329; outline-offset: -2px; border-radius: 10px; }
+.preview-custom-colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.preview-custom-colors label { min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 3px 2px; border: 1px solid #dce5d4; border-radius: 10px; background: #fff; font-size: 11px; color: #4f5f48; min-width: 0; }
+.preview-custom-colors input { width: 30px; height: 22px; flex-shrink: 0; padding: 0; border: 0; background: none; }
+.preview-custom-colors span { max-width: 100%; font-size: 10px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 359px) { .preview-palette-label { display: none; } }

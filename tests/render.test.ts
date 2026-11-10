@@ -3,6 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { basename,join } from 'node:path';
 import { caption, renderDailyProject, renderProject, visibleDays } from '../src/render';
 import { newProject } from '../src/storage';
+import { dailyPaperTone } from '../src/daily-layout';
+import { PALETTES } from '../src/types';
 import type { CalendarEvent } from '../src/types';
 const realFetch=globalThis.fetch;
 beforeAll(()=>vi.stubGlobal('fetch',async(url:string)=>{
@@ -90,5 +92,24 @@ describe('daily Story layout', () => {
     [day] = await renderDailyProject(project);
     expect(day.warnings).toEqual([]);
     expect(caption(project, day)).not.toContain('12pm');
+  });
+
+  it('separates the textured paper sheet from the background in every palette', async () => {
+    const custom = { name: 'Custom', paper: '#2B2340', ink: '#F4ECFF', accent: '#F0B84A', badgeInk: '#2B2340' };
+    expect(dailyPaperTone('cream', PALETTES.cream).fill).toBe(PALETTES.sage.paper);
+    expect(dailyPaperTone('forest', PALETTES.forest).dark).toBe(true);
+    expect(dailyPaperTone('custom', custom).dark).toBe(true);
+    for (const key of [...Object.keys(PALETTES), 'custom']) {
+      const project = { ...newProject(), week: '2026-10-19', palette: key, customPalette: custom };
+      project.events = [event('a')]; project.selected = ['a'];
+      const [day] = await renderDailyProject(project);
+      const svg = day.pages[1].svg;
+      const background = svg.match(/<rect width="1080" height="1920" fill="([^"]+)"/)![1];
+      const sheet = svg.match(/data-layer="paper"[^>]*><rect[^>]*fill="([^"]+)"/)![1];
+      expect(sheet.toLowerCase(), key).not.toBe(background.toLowerCase());
+      expect(svg).toContain('data-layer="paper-shadow"');
+      expect(svg).toContain('filter="url(#daily-texture)"');
+      expect(svg.includes('daily-texture-light'), key).toBe(dailyPaperTone(key, key === 'custom' ? custom : PALETTES[key]).dark);
+    }
   });
 });
