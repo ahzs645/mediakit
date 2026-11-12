@@ -65,3 +65,4 @@
 .photos-actions{display:grid;gap:8px}.photos-actions .download-note{margin:0}
 /* Update available banner and version line */
 .update-banner{display:flex;align-items:center;gap:10px;padding:8px 16px;padding-top:max(8px,env(safe-area-inset-top));background:#155329;color:#fff;font-size:14px}.update-banner>span{flex:1}.update-banner>button{background:#fff;color:#155329;font-weight:600;border-radius:999px;padding:6px 14px;font-size:13px}.version-info{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--border);padding-top:12px;margin-top:4px;font-size:13px;color:#5d6b55}.version-info a{text-decoration:underline;color:#155329}
+.timing-fields{position:relative;border:0;padding:0;margin:0 0 4px;min-width:0}.timing-fields>legend{width:100%;font-size:13px;font-weight:500;color:#617553;padding:0;margin-bottom:10px}

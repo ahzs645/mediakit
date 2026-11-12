@@ -25,8 +25,8 @@ export function parseProject(data: unknown): Project {
   try { new Intl.DateTimeFormat('en', { timeZone: p.timezone }); } catch { throw new Error('Project contains an invalid time zone.'); }
   const edits: Record<string, EventEdit> = {};
   for (const [id, edit] of Object.entries(p.edits)) {
-    if (!edit || typeof edit !== 'object' || ['title','description','location','timeLabel'].some(k => edit[k as keyof EventEdit] !== undefined && typeof edit[k as keyof EventEdit] !== 'string') || ['showDescription','showTitle','showTime','showLocation'].some(k => edit[k as keyof EventEdit] !== undefined && typeof edit[k as keyof EventEdit] !== 'boolean')) throw new Error('Project contains invalid event edits.');
-    edits[id] = { title: edit.title, description: edit.description, location: edit.location, timeLabel: edit.timeLabel, showDescription: edit.showDescription, showTitle: edit.showTitle, showTime: edit.showTime, showLocation: edit.showLocation };
+    if (!edit || typeof edit !== 'object' || ['title','description','location','timeLabel'].some(k => edit[k as keyof EventEdit] !== undefined && typeof edit[k as keyof EventEdit] !== 'string') || ['start','end'].some(k => edit[k as keyof EventEdit] !== undefined && !(typeof edit[k as keyof EventEdit] === 'string' && Number.isFinite(Date.parse(edit[k as keyof EventEdit] as string)))) || edit.start !== undefined && edit.end !== undefined && Date.parse(edit.end) < Date.parse(edit.start) || ['allDay','showDescription','showTitle','showTime','showLocation'].some(k => edit[k as keyof EventEdit] !== undefined && typeof edit[k as keyof EventEdit] !== 'boolean')) throw new Error('Project contains invalid event edits.');
+    edits[id] = { start: edit.start, end: edit.end, allDay: edit.allDay, title: edit.title, description: edit.description, location: edit.location, timeLabel: edit.timeLabel, showDescription: edit.showDescription, showTitle: edit.showTitle, showTime: edit.showTime, showLocation: edit.showLocation };
   }
   return { ...newProject(), ...p, week: monday(p.week), edits, selected: [...new Set(p.selected)] };
 }

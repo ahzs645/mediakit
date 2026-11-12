@@ -10,6 +10,7 @@ import displayUrl from '@fontsource/barlow-condensed/files/barlow-condensed-lati
 import { textPath, wrap, escape } from './vector-text';
 import { renderList } from './list-layout';
 import { renderDaily } from './daily-layout';
+import { projectEvents } from './event-filters';
 import type { DailyDay } from './daily-layout';
 import condensedUrl from '@fontsource/barlow-condensed/files/barlow-condensed-latin-700-normal.woff?url';
 import JSZip from 'jszip';
@@ -47,11 +48,11 @@ export interface RenderResult { pages: RenderedPage[]; warnings: string[]; count
 export function visibleDays(project: Project): string[] {
   const base = daysFor(project.week, project.layout).filter(day => !project.skippedDays.includes(day));
   if (!project.hideEmptyDays) return base;
-  return base.filter(day => [...project.events,...project.manualEvents].some(e => project.selected.includes(e.id) && eventOnDay(e,day,project.timezone)));
+  return base.filter(day => projectEvents(project).some(e => project.selected.includes(e.id) && eventOnDay(e,day,project.timezone)));
 }
 export function selectedEvents(project: Project): CalendarEvent[] {
   const days = daysFor(project.week, project.layout).filter(day => !project.skippedDays.includes(day));
-  return [...project.events, ...project.manualEvents].filter(e => project.selected.includes(e.id) && days.some(day => eventOnDay(e, day, project.timezone)))
+  return projectEvents(project).filter(e => project.selected.includes(e.id) && days.some(day => eventOnDay(e, day, project.timezone)))
     .sort((a,b) => a.start.localeCompare(b.start) || a.id.localeCompare(b.id));
 }
 export function dimensions(project: Pick<Project, 'format'>): { width: number; height: number } {

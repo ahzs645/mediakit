@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { addDays, dateKey, dateStamp, daysFor, eventOnDay, formatTime, localToIso, monday, rangeLabel, validDay } from '../src/dates';
+import { addDays, dateKey, dateStamp, daysFor, eventOnDay, eventTiming, formatTime, timingToIso, localToIso, monday, rangeLabel, validDay } from '../src/dates';
 import { cleanText, fetchEvents, normalizeEvent, safeUrl, simplifyText } from '../src/api';
 import { newProject, parseProject } from '../src/storage';
 import { DEFAULT_SOURCE } from '../src/types';
 import type { CalendarEvent } from '../src/types';
-import { isTeamsEvent } from '../src/event-filters';
+import { isTeamsEvent, projectEvents, withEdit } from '../src/event-filters';
 const event: CalendarEvent = { id:'ote:1',sourceId:'ote',title:'Campus night',description:'',start:'2026-10-23T01:00:00Z',end:'2026-10-23T03:00:00Z',allDay:false,location:'UNBC',category:'Campus',url:'',status:'scheduled',cost:'' };
 afterEach(()=>vi.unstubAllGlobals());
 describe('calendar calculations',()=>{
@@ -46,4 +46,26 @@ describe('Microsoft Teams venues',()=>{
  it('recognizes named venues, common aliases, and meeting links',()=>{for(const location of ['Microsoft Teams','MS Teams','MS-Teams','microsoft teams (online)','Teams','Online via Teams','Online (Teams)','Virtual (Teams meeting)','Teams (virtual)','https://teams.microsoft.com/l/meetup-join/123','https://teams.live.com/meet/123','https://teams.cloud.microsoft/meet/123'])expect(isTeamsEvent({...event,location}),location).toBe(true);expect(isTeamsEvent({...event,url:'https://teams.microsoft.com/l/meetup-join/123'})).toBe(true);});
  it('keeps physical events whose titles or descriptions merely mention teams',()=>{for(const location of ['Student centre','Teams Canada training centre','Sports teams room','Library'])expect(isTeamsEvent({...event,location,title:'Teams practice',description:'We also discuss Microsoft Teams.'}),location).toBe(false);});
  it('keeps the source venue classification after display edits and accepts an explicit Teams venue edit',()=>{expect(isTeamsEvent({...event,location:'Microsoft Teams'},{location:''})).toBe(true);expect(isTeamsEvent(event,{location:'MS Teams'})).toBe(true);});
+});
+describe('editing event dates and times',()=>{
+ it('round-trips form values for timed and all-day events',()=>{
+  expect(eventTiming(event)).toEqual({date:'2026-10-22',endDate:'2026-10-22',start:'18:00',end:'20:00',allDay:false});
+  const allDay={...event,start:'2026-10-22T07:00:00Z',end:'2026-10-24T07:00:00Z',allDay:true};
+  expect(eventTiming(allDay)).toMatchObject({date:'2026-10-22',endDate:'2026-10-23',allDay:true});
+  expect(timingToIso(eventTiming(allDay))).toEqual({start:'2026-10-22T07:00:00.000Z',end:'2026-10-24T07:00:00.000Z',allDay:true});
+  expect(()=>timingToIso({date:'2026-10-22',endDate:'2026-10-22',start:'20:00',end:'18:00',allDay:false})).toThrow('after the start');
+ });
+ it('moves an edited event to its new day without changing the source event',()=>{
+  const when=timingToIso({date:'2026-10-24',endDate:'2026-10-24',start:'19:30',end:'21:00',allDay:false});
+  const p={...newProject(),events:[event],edits:{[event.id]:when}};
+  const [moved]=projectEvents(p);
+  expect(eventOnDay(moved,'2026-10-24')).toBe(true);expect(eventOnDay(moved,'2026-10-22')).toBe(false);expect(formatTime(moved)).toBe('7:30pm–9pm');
+  expect(p.events[0].start).toBe(event.start);expect(withEdit(event,{title:'x'})).toBe(event);
+ });
+ it('saves and validates date overrides in project files',()=>{
+  const p={...newProject(),events:[event],edits:{[event.id]:{start:'2026-10-25T01:00:00Z',end:'2026-10-25T03:00:00Z',allDay:false}}};
+  expect(parseProject(JSON.parse(JSON.stringify(p))).edits[event.id]).toMatchObject({start:'2026-10-25T01:00:00Z',allDay:false});
+  expect(()=>parseProject({...p,edits:{[event.id]:{start:'nope'}}})).toThrow('invalid event edits');
+  expect(()=>parseProject({...p,edits:{[event.id]:{start:'2026-10-25T03:00:00Z',end:'2026-10-25T01:00:00Z'}}})).toThrow('invalid event edits');
+ });
 });

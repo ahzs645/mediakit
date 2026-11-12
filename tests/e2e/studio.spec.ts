@@ -258,3 +258,19 @@ test('mobile date browsing and weekly list mode preserve multi-event selections'
   await page.getByRole('tab',{name:'Design',exact:true}).click();await page.getByRole('button',{name:'Weekly list',exact:false}).click();await ready(page);await page.getByRole('tab',{name:'Events',exact:true}).click();await page.getByRole('button',{name:'Show 2026-10-25',exact:true}).click();await page.getByRole('button',{name:'Select all 2026-10-25',exact:true}).click();await expect(page.locator('.selected-filter')).toContainText('7');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.getByRole('tab',{name:'Preview',exact:true}).click();await ready(page);await expect(page.locator('.schedule-image')).toHaveAttribute('alt',/Full week/);await page.screenshot({path:'test-results/mobile-weekly-list.png',fullPage:true});
 });
+
+test('edits an event date and time and moves it to the new day',async({page})=>{
+  await setup(page);await pick(page);
+  await page.getByRole('button',{name:'Edit Campus event 19.1',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await dialog.getByLabel('Start date').fill('2026-10-21');await expect(dialog.getByLabel('End date')).toHaveValue('2026-10-21');
+  await dialog.getByLabel('Starts').fill('15:00');await dialog.getByLabel('Ends').fill('16:30');
+  await dialog.getByRole('button',{name:'Save edits'}).click();await expect(page.getByText('Event updated in your design.')).toBeVisible();
+  const card=page.locator('.event-card').filter({hasText:'Campus event 19.1'});
+  await expect(card).toContainText('3pm–4:30pm');await expect(card.locator('input[type=checkbox]')).toBeChecked();
+  await expect(page.locator('.day-group').filter({has:card})).toContainText('Wed');
+  await ready(page);
+  await page.getByRole('button',{name:'Edit Campus event 19.1',exact:true}).click();
+  await dialog.getByLabel('Start date').fill('2026-10-29');await dialog.getByRole('button',{name:'Save edits'}).click();
+  await expect(page.getByText(/Event moved to .*Oct 29.*Change the week/)).toBeVisible();await expect(card).toHaveCount(0);
+});

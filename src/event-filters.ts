@@ -1,4 +1,13 @@
-import type { CalendarEvent, EventEdit } from './types';
+import type { CalendarEvent, EventEdit, Project } from './types';
+
+/** The event as it appears in the design, with any edited date and time applied. */
+export function withEdit(event: CalendarEvent, edit?: EventEdit): CalendarEvent {
+  if (!edit || edit.start === undefined && edit.end === undefined && edit.allDay === undefined) return event;
+  return { ...event, start: edit.start ?? event.start, end: edit.end ?? event.end, allDay: edit.allDay ?? event.allDay };
+}
+export function projectEvents(project: Pick<Project, 'events' | 'manualEvents' | 'edits'>): CalendarEvent[] {
+  return [...project.events, ...project.manualEvents].map(event => withEdit(event, project.edits[event.id]));
+}
 
 // Use the venue or a direct meeting URL, rather than incidental mentions in a description.
 export function isTeamsEvent(event: CalendarEvent, edit?: EventEdit): boolean {

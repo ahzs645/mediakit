@@ -71,3 +71,21 @@ export function localToIso(day: string, time: string, timezone = TIMEZONE): stri
   if (dateKey(result, timezone) !== day || actual !== time) throw new Error('That local time does not exist because of a daylight-saving clock change. Choose another time.');
   return result;
 }
+/** Local wall-clock time (HH:mm, 24-hour) of an instant. */
+export function localTime(value: string, timezone = TIMEZONE): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: effectiveTimezone(value, timezone), hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
+}
+export interface EventTiming { date: string; endDate: string; start: string; end: string; allDay: boolean }
+/** Form values for an event's dates; all-day end dates are inclusive here. */
+export function eventTiming(event: Pick<CalendarEvent, 'start' | 'end' | 'allDay'>, timezone = TIMEZONE): EventTiming {
+  const lastInstant = new Date(Math.max(Date.parse(event.start), Date.parse(event.end) - (event.allDay ? 1 : 0))).toISOString();
+  return { date: dateKey(event.start, timezone), endDate: dateKey(lastInstant, timezone), start: localTime(event.start, timezone), end: localTime(event.end, timezone), allDay: event.allDay };
+}
+/** Converts form values back to ISO instants (all-day ends become the exclusive next midnight). */
+export function timingToIso(t: EventTiming, timezone = TIMEZONE): { start: string; end: string; allDay: boolean } {
+  if (!validDay(t.date) || !validDay(t.endDate)) throw new Error('Choose a valid start and end date.');
+  const start = localToIso(t.date, t.allDay ? '00:00' : t.start, timezone);
+  const end = localToIso(t.allDay ? addDays(t.endDate, 1) : t.endDate, t.allDay ? '00:00' : t.end, timezone);
+  if (Date.parse(end) < Date.parse(start)) throw new Error('The end must be after the start.');
+  return { start, end, allDay: t.allDay };
+}

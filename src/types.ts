@@ -8,7 +8,8 @@ export interface CalendarEvent {
   start: string; end: string; allDay: boolean; location: string; category: string;
   url: string; status: string; cost: string; manual?: boolean; origin?: string; labels?: string[];
 }
-export interface EventEdit { title?: string; description?: string; location?: string; timeLabel?: string; showDescription?: boolean; showTitle?: boolean; showTime?: boolean; showLocation?: boolean }
+/** Per-event overrides. start/end/allDay move the event itself (ISO instants, end exclusive), never the source website. */
+export interface EventEdit { start?: string; end?: string; allDay?: boolean; title?: string; description?: string; location?: string; timeLabel?: string; showDescription?: boolean; showTitle?: boolean; showTime?: boolean; showLocation?: boolean }
 export interface Palette { name: string; paper: string; ink: string; accent: string; badgeInk: string }
 export interface Project {
   version: 1; week: string; layout: Layout; template: Template; format: Format; palette: string;
