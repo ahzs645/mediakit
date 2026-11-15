@@ -96,7 +96,7 @@ The repeating background uses one complete original eleven-letter logo on the or
 
 The default heading and last frame use a consistent 4% top/bottom canvas margin. Heading and month positions can move independently from −2% to +1% of canvas height. Settings are saved in project backups, with backward-compatible defaults for older projects.
 
-**Design → Both outputs → Display font → Use a local font** loads an OTF, TTF, or WOFF (up to 1 MB) for weekly and daily headings and dates. For Salted, select your own font file. Event details keep their built-in typefaces, and the Original cards template keeps its supplied heading and October 2026 stamp artwork. Local fonts stay in the browser, work offline, and are excluded from project backups and deployments.
+**Design → Both outputs → Display font → Use a local font** loads an OTF, TTF, or WOFF (up to 1 MB) for weekly and daily headings and dates. For Salted, select your own font file. The Daily Story cover heading keeps the local font even when it lacks a character such as “?”; only that character uses the built-in hand lettering. Event details keep their built-in typefaces, and the Original cards template keeps its supplied heading and October 2026 stamp artwork. Local fonts stay in the browser, work offline, and are excluded from project backups and deployments.
 
 The reproducible aligned overlay report is in **[docs/visual-comparison/index.html](docs/visual-comparison/index.html)**, including four original references, output, an overlay opacity control, difference images, and numeric results. Differences include intentional margin, badge height, texture, and date changes; no pixel regions are excluded. [All six export variants](docs/layout-variants.png) show actual output proportions side by side.
 

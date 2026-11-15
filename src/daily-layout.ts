@@ -3,7 +3,7 @@ import type { CalendarEvent, Palette, Project } from './types';
 import type { RenderedPage } from './render';
 import { PALETTES } from './types';
 import { eventOnDay, formatTime, readableDay } from './dates';
-import { escape, fontForText, textPath, wrap } from './vector-text';
+import { escape, fontForText, mixedTextPath, textPath, wrap } from './vector-text';
 import paperUrl from './assets/daily-paper.jpg?inline';
 import tapeUrl from './assets/daily-tape.png?inline';
 
@@ -54,8 +54,7 @@ export function renderDaily(project: Project, fonts: Fonts, events: CalendarEven
   const sheetInk = paperTone.ink;
   const textScale = project.textScale;
   const dateLabel = (day: string) => readableDay(day, { month: 'long', year: 'numeric' }).toUpperCase();
-  const coverFont = fontForText(lettering, fonts.hand, coverLines.join(' '));
-  const coverHeading = coverLines.map((line, i) => textPath(coverFont, line, w / 2, 740 + i * 101, 76, palette.accent, 790, true)).join('');
+  const coverHeading = coverLines.map((line, i) => mixedTextPath(lettering, fonts.hand, line, w / 2, 740 + i * 101, 76, palette.accent, 790, true)).join('');
   const logo = textPath(fonts.display, 'OVER THE EDGE', 0, 0, 98, project.palette === 'cream' ? '#81AE50' : palette.accent);
   let watermark = `<defs><g id="daily-logo">${logo}</g></defs><g data-layer="watermark" opacity=".12" transform="rotate(-5 540 960)">`;
   for (let row = -1; row <= 10; row++) for (let col = -2; col <= 2; col++) {
